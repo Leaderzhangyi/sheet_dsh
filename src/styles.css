@@ -135,7 +135,11 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .import-tab { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: #83878c; font-size: 12px; padding: 9px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .import-tab:hover { color: var(--ink); }
 .import-tab.active { color: var(--ink); font-weight: 700; border-bottom-color: var(--red); }
-.import-illustration { padding: 0 0 14px; }.import-illustration img { display: block; width: 100%; border-radius: 6px; }
+.import-illustration { padding: 14px 0 0; }.import-illustration img { display: block; width: 100%; border-radius: 6px; }
+.import-drop-glow { margin: 0; }
+.import-drop-glow .drop-zone { min-height: 172px; border-radius: 11px; }
+.drop-zone--bare { border: 0; background: transparent; }
+.drop-zone--bare:hover { border: 0; background: rgba(255, 255, 255, .55); }
 .ddl-import { display: grid; gap: 10px; margin-top: 4px; }
 .ddl-name-input { height: 34px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 11px; font-size: 11px; color: var(--ink); background: #fff; }.ddl-name-input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-name-input::placeholder { color: #b3b7bb; }
 .ddl-textarea { min-height: 300px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 12px 13px; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; font-size: 11px; line-height: 1.7; color: var(--ink); background: #fbfcfc; resize: vertical; }.ddl-textarea:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-textarea::placeholder { color: #b6babe; }
