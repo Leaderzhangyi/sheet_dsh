@@ -459,8 +459,7 @@ function App() {
     closeSettings();
     try {
       await deleteWorkspaceDataset(slot);
-    } catch (error) {
-      console.error("删除本地索引失败", error);
+    } catch {
       setCacheAvailable(false);
       return;
     }
@@ -491,8 +490,7 @@ function App() {
     closeSettings();
     try {
       await clearPersistedDataset();
-    } catch (error) {
-      console.error("清空本地索引失败", error);
+    } catch {
       setCacheAvailable(false);
       return;
     }
