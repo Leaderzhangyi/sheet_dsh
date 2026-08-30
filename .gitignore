@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.DS_Store
+
+# 敏感业务数据：真实数据字典文件不入库
+*.xlsx
+
+# 本地工作资产与工具目录
+assets/
+.agents/
+.codex/
+Codex Image*.png
