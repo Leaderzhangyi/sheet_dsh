@@ -65,7 +65,7 @@ COMMENT ON TABLE a_pub_staff_tab IS '员工表';`)
     await expect(page.getByTestId('code-related-fields')).toBeVisible()
     await expect(page.getByTestId('code-values')).toHaveCSS('overflow-y', 'auto')
     await expect(page.getByTestId('code-related-fields-list')).toHaveCSS('overflow-y', 'auto')
-    await expect(page.getByTestId('code-directory-list')).toHaveCSS('overflow-y', 'auto')
+    await expect(page.locator('.codes-animated-list .scroll-list')).toHaveCSS('overflow-y', 'auto')
     const codeValuesBox = await page.getByTestId('code-values').boundingBox()
     const relatedFieldsBox = await page.getByTestId('code-related-fields').boundingBox()
     expect(relatedFieldsBox?.x).toBeGreaterThan(codeValuesBox?.x ?? 0)
@@ -88,6 +88,35 @@ COMMENT ON TABLE a_pub_staff_tab IS '员工表';`)
     await expect(page.getByRole('dialog')).toBeHidden({ timeout: 60000 })
     await page.setViewportSize({ width: 390, height: 844 })
     await page.screenshot({ path: 'test-results/query-desk-mobile.png', fullPage: true })
+  })
+
+  test('数据标准页动画列表与设置菜单删除数据源', async ({ page }) => {
+    test.setTimeout(120000)
+    await importWorkbook(page, 'dp_ial.xlsx')
+    await page.getByTestId('nav-standards').click()
+    await expect(page.locator('.compact-row').first()).toBeVisible({ timeout: 30000 })
+    await expect(page.getByTestId('standards-more')).toContainText('滚动加载更多')
+
+    await page.getByTestId('standards-filter').fill('法人代码')
+    await page.locator('.compact-row').first().click()
+    await expect(page.locator('.compact-detail .detail-header h2')).toContainText('法人代码', { timeout: 10000 })
+    await page.getByTestId('standards-filter').fill('不存在的东西')
+    await expect(page.getByText('没有匹配的标准')).toBeVisible()
+
+    await page.getByTestId('standards-filter').fill('')
+    await page.getByTestId('settings-button').click()
+    await expect(page.getByTestId('settings-menu')).toBeVisible()
+    await page.getByTestId('settings-delete-source').click()
+    await expect(page.getByTestId('settings-delete-source')).toContainText('再点一次')
+    await expect(async () => {
+      await page.getByTestId('settings-delete-source').click()
+      await expect(page.getByTestId('dataset-empty')).toBeVisible({ timeout: 2000 })
+    }).toPass({ timeout: 20000 })
+
+    await page.reload()
+
+    await page.reload()
+    await expect(page.getByTestId('dataset-empty')).toBeVisible({ timeout: 30000 })
   })
 
   test('导入 RCVP 零售集市库并查看 DP_IAL 字段血缘', async ({ page }) => {

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DictionaryDataset } from './lib/import/types'
 
 const mocks = vi.hoisted(() => ({
+  clearPersistedDataset: vi.fn(),
+  deleteWorkspaceDataset: vi.fn(),
   inspectExcelFile: vi.fn(),
   readExcelFile: vi.fn(),
   fingerprintUploadedFile: vi.fn(),
@@ -19,6 +21,8 @@ vi.mock('./lib/import/file', () => ({
 }))
 
 vi.mock('./lib/storage/indexedDb', () => ({
+  clearPersistedDataset: mocks.clearPersistedDataset,
+  deleteWorkspaceDataset: mocks.deleteWorkspaceDataset,
   loadPersistedDataset: mocks.loadPersistedDataset,
   loadPersistedWorkspace: mocks.loadPersistedWorkspace,
   savePersistedDataset: mocks.savePersistedDataset,
@@ -55,6 +59,8 @@ describe('application bootstrap', () => {
     vi.resetAllMocks()
     mocks.loadPersistedWorkspace.mockResolvedValue({})
     mocks.saveWorkspaceDataset.mockResolvedValue(undefined)
+    mocks.deleteWorkspaceDataset.mockResolvedValue(undefined)
+    mocks.clearPersistedDataset.mockResolvedValue(undefined)
     mocks.inspectExcelFile.mockResolvedValue([{ name: '数据字典', rowCount: 2, preview: [['表中文名']], likelyRevision: false }])
   })
 
@@ -151,7 +157,7 @@ describe('application bootstrap', () => {
     expect(screen.getByText('总行')).toBeInTheDocument()
     expect(screen.getByTestId('code-values')).toHaveClass('code-values-scroll')
     expect(screen.getByTestId('code-directory-search')).toBeInTheDocument()
-    expect(screen.getByTestId('code-directory-list')).toHaveClass('directory-list-scroll')
+    expect(document.querySelector('.codes-animated-list .scroll-list')).not.toBeNull()
     expect(screen.getByTestId('code-related-fields')).toHaveClass('code-related-fields-scroll')
     fireEvent.click(screen.getByTitle('复制'))
     expect(screen.queryByTestId('nav-revisions')).not.toBeInTheDocument()
@@ -227,6 +233,54 @@ describe('application bootstrap', () => {
 
     await expect(screen.findByText('未找到可识别的表头')).resolves.toBeTruthy()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('renders the standards library through the animated list', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-standards'))
+    expect(screen.getByText('机构类型', { selector: '.compact-row strong' })).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('standards-filter'), { target: { value: '法人' } })
+    expect(screen.getByText('没有匹配的标准')).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('standards-filter'), { target: { value: '' } })
+    fireEvent.click(screen.getByText('机构类型', { selector: '.compact-row strong' }))
+    expect(screen.getByRole('heading', { name: '机构类型' })).toBeInTheDocument()
+    expect(screen.getAllByText('机构类型', { selector: '.related-row strong' })[0]).toBeInTheDocument()
+  })
+
+  it('deletes the active source from the settings menu', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('settings-button'))
+    fireEvent.click(screen.getByTestId('settings-delete-source'))
+    expect(screen.getByTestId('settings-delete-source')).toHaveTextContent('再点一次')
+    fireEvent.click(screen.getByTestId('settings-delete-source'))
+
+    await expect(screen.findByTestId('dataset-empty')).resolves.toBeTruthy()
+    expect(mocks.deleteWorkspaceDataset).toHaveBeenCalledWith('warehouse')
+  })
+
+  it('clears all local data from the settings menu', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({
+      warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' },
+      retail: { dataset: retailDataset, source: { kind: 'uploaded', fingerprint: 'rcvp-v1' }, savedAt: '2026-08-18T00:00:00.000Z' },
+    })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('settings-button'))
+    fireEvent.click(screen.getByTestId('settings-clear-all'))
+    fireEvent.click(screen.getByTestId('settings-clear-all'))
+
+    await expect(screen.findByTestId('dataset-empty')).resolves.toBeTruthy()
+    expect(mocks.clearPersistedDataset).toHaveBeenCalledOnce()
   })
 
   it('switches between the retail and warehouse sources and follows a lineage link', async () => {

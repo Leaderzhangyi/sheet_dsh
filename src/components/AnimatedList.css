@@ -1,0 +1,79 @@
+.scroll-list-container {
+  --alist-surface: #120f17;
+  --alist-item-bg: #2f293a;
+  --alist-item-bg-selected: #453b52;
+  --alist-text: #ffffff;
+  --alist-scrollbar-thumb: #2f293a;
+  --alist-scrollbar-track: #120f17;
+  --alist-radius: 8px;
+
+  position: relative;
+  width: 500px;
+}
+
+.scroll-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 16px;
+  outline: none;
+}
+
+.scroll-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-list::-webkit-scrollbar-track {
+  background: var(--alist-scrollbar-track);
+}
+
+.scroll-list::-webkit-scrollbar-thumb {
+  background: var(--alist-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.item {
+  padding: 16px;
+  background-color: var(--alist-item-bg);
+  border-radius: var(--alist-radius);
+  margin-bottom: 0;
+}
+
+.item.selected {
+  background-color: var(--alist-item-bg-selected);
+}
+
+.item-text {
+  color: var(--alist-text);
+  margin: 0;
+}
+
+.top-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: linear-gradient(to bottom, var(--alist-surface), transparent);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.bottom-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: linear-gradient(to top, var(--alist-surface), transparent);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}

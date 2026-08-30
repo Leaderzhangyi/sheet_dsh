@@ -140,6 +140,39 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .import-drop-glow .drop-zone { min-height: 172px; border-radius: 11px; }
 .drop-zone--bare { border: 0; background: transparent; }
 .drop-zone--bare:hover { border: 0; background: rgba(255, 255, 255, .55); }
+
+.compact-directory { height: calc(100vh - 70px); min-height: 540px; display: grid; grid-template-columns: 316px minmax(0, 1fr); }
+.compact-side { background: rgba(255,255,255,.72); border-right: 1px solid var(--line); padding: 18px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.compact-side-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 6px 2px; }
+.compact-side-head h2 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
+.compact-list { --alist-surface: #ffffff; --alist-item-bg: #ffffff; --alist-item-bg-selected: #f4f8fb; --alist-text: #1c1c1b; --alist-scrollbar-thumb: #d9dcdf; --alist-scrollbar-track: #fafbfb; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.compact-list .scroll-list { flex: 1; min-height: 0; max-height: none; padding: 2px 6px 8px 2px; }
+.compact-list .item { padding: 8px 11px; border: 1px solid var(--line); transition: border-color .16s ease, background .16s ease; }
+.compact-list .item:hover { border-color: #c6cbd0; }
+.compact-list .item.selected { border-color: #b9c9d7; background: #f4f8fb; }
+.compact-row { display: grid; gap: 3px; min-width: 0; }
+.compact-row strong { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-row small { color: #969b9f; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-detail { padding: 24px 30px 44px; overflow: auto; min-width: 0; }
+.compact-detail .detail-header { margin-bottom: 2px; }
+.compact-detail .standard-properties { margin-top: 24px; }
+.compact-detail .related-fields { margin-top: 28px; }
+.compact-detail.codes { display: flex; flex-direction: column; padding: 22px 26px 28px; }
+.compact-detail.codes .code-detail-grid { flex: 1; min-height: 0; margin-top: 16px; }
+.standards-empty { color: #9a9ea2; font-size: 11px; text-align: center; padding: 42px 0; }
+.standards-more { color: #a6aab0; font-size: 10px; text-align: center; padding: 10px 0 2px; }
+
+.settings-wrap { position: relative; display: inline-flex; }
+.settings-backdrop { position: fixed; inset: 0; z-index: 19; }
+.settings-menu { position: absolute; top: calc(100% + 9px); right: 0; z-index: 20; width: 246px; background: #fff; border: 1px solid #d9dcde; border-radius: 8px; box-shadow: 0 22px 60px rgba(28, 31, 33, .16); padding: 7px; }
+.settings-menu-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 10px 10px; border-bottom: 1px solid var(--line); }
+.settings-menu-head span { font-weight: 700; font-size: 12px; }
+.settings-menu-head small { color: #979b9f; font-size: 10px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-menu-item { width: 100%; display: flex; align-items: center; gap: 9px; border: 0; background: transparent; border-radius: 5px; padding: 9px 10px; font-size: 12px; color: #3f4448; text-align: left; }
+.settings-menu-item:hover { background: #f5f6f7; }
+.settings-menu-item.danger { color: var(--red); }
+.settings-menu-item.danger:hover { background: #fdf0ef; }
+.settings-menu-note { color: #a0a4a8; font-size: 9px; line-height: 1.6; padding: 9px 10px 6px; border-top: 1px solid var(--line); margin-top: 6px; }
 .ddl-import { display: grid; gap: 10px; margin-top: 4px; }
 .ddl-name-input { height: 34px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 11px; font-size: 11px; color: var(--ink); background: #fff; }.ddl-name-input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-name-input::placeholder { color: #b3b7bb; }
 .ddl-textarea { min-height: 300px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 12px 13px; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; font-size: 11px; line-height: 1.7; color: var(--ink); background: #fbfcfc; resize: vertical; }.ddl-textarea:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-textarea::placeholder { color: #b6babe; }
@@ -157,4 +190,6 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .directory-list-panel { display: flex; flex-direction: column; overflow: hidden; }.directory-list-scroll { min-height: 0; overflow: auto; }.code-directory-body { height: min(680px, calc(100vh - 245px)); min-height: 480px; }.code-directory-detail { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }.code-directory-detail > .detail-header { flex: 0 0 auto; }.code-detail-grid { display: grid; flex: 1; gap: 24px; grid-template-columns: minmax(0, 1fr) minmax(250px, .55fr); min-height: 0; }.code-detail-grid .code-values-scroll { margin-top: 30px; max-height: none; min-height: 0; overflow: auto; }.code-related-fields-scroll { display: flex; flex-direction: column; margin-top: 30px; min-height: 0; overflow: hidden; }.code-related-fields-scroll .section-heading { flex: 0 0 auto; }.related-fields-list { min-height: 0; overflow: auto; }
 
 @media (max-width: 920px) { .code-detail-grid { grid-template-columns: minmax(0, 1fr) minmax(220px, .6fr); gap: 16px; } }
+@media (max-width: 920px) { .compact-directory { grid-template-columns: 262px minmax(0, 1fr); } }
+@media (max-width: 680px) { .compact-directory { display: block; height: auto; min-height: 0; }.compact-side { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }.compact-list .scroll-list { max-height: 210px; }.compact-detail, .compact-detail.codes { padding: 20px 17px 40px; }.compact-detail.codes .code-detail-grid { display: block; }.compact-detail.codes .code-detail-grid .code-values-scroll { max-height: 300px; } }
 @media (max-width: 680px) { .code-directory-body { height: auto; min-height: 0; }.code-directory-detail { display: block; overflow: visible; }.code-detail-grid { display: block; }.code-detail-grid .code-values-scroll, .code-related-fields-scroll { max-height: 360px; }.code-related-fields-scroll { display: flex; }.directory-list-scroll { max-height: 230px; } }

@@ -15,6 +15,8 @@ import {
   Search,
   Settings2,
   Table2,
+  Trash,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -26,6 +28,7 @@ import {
 } from "./lib/import/file";
 import { parseDdl } from "./lib/import/ddl";
 import BorderGlow from "./components/BorderGlow";
+import AnimatedList from "./components/AnimatedList";
 import type {
   DictionaryDataset,
   FieldLineage,
@@ -40,6 +43,8 @@ import {
   type SearchType,
 } from "./lib/search/search";
 import {
+  clearPersistedDataset,
+  deleteWorkspaceDataset,
   loadPersistedWorkspace,
   saveWorkspaceDataset,
   type DatasetSlot,
@@ -128,6 +133,8 @@ function App() {
     [],
   );
   const [importMode, setImportMode] = useState<"excel" | "ddl">("excel");
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsConfirm, setSettingsConfirm] = useState<"delete" | "clear" | null>(null);
   const [ddlText, setDdlText] = useState("");
   const [ddlName, setDdlName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -454,6 +461,61 @@ function App() {
     }
   };
 
+  const closeSettings = () => {
+    setShowSettings(false);
+    setSettingsConfirm(null);
+  };
+
+  const handleDeleteActiveSource = async () => {
+    const slot = activeWorkspace;
+    closeSettings();
+    try {
+      await deleteWorkspaceDataset(slot);
+    } catch (error) {
+      console.error("删除本地索引失败", error);
+      setCacheAvailable(false);
+      return;
+    }
+    const nextDatasets: WorkspaceDatasets = { ...datasets };
+    delete nextDatasets[slot];
+    const nextOrigins: WorkspaceOrigins = { ...datasetOrigins };
+    delete nextOrigins[slot];
+    setDatasets(nextDatasets);
+    setDatasetOrigins(nextOrigins);
+    const remaining = (Object.keys(nextDatasets) as DatasetSlot[])[0];
+    if (remaining) {
+      selectWorkspace(remaining);
+    } else {
+      setActiveWorkspace("warehouse");
+      setSelectedTableId("");
+      setSelectedFieldId(null);
+      setSelectedStandardId(null);
+      setSelectedCodeId(null);
+      setQuery("");
+      setNavigationStack([]);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    closeSettings();
+    try {
+      await clearPersistedDataset();
+    } catch (error) {
+      console.error("清空本地索引失败", error);
+      setCacheAvailable(false);
+      return;
+    }
+    setDatasets({});
+    setDatasetOrigins({});
+    setActiveWorkspace("warehouse");
+    setSelectedTableId("");
+    setSelectedFieldId(null);
+    setSelectedStandardId(null);
+    setSelectedCodeId(null);
+    setQuery("");
+    setNavigationStack([]);
+  };
+
   const resetImport = () => {
     setShowImport(false);
     setImportError("");
@@ -747,9 +809,67 @@ function App() {
               <Upload size={15} />
               导入文件
             </button>
-            <button className="icon-button" title="设置">
-              <Settings2 size={17} />
-            </button>
+            <div className="settings-wrap">
+              <button
+                className="icon-button"
+                title="设置"
+                data-testid="settings-button"
+                aria-haspopup="menu"
+                aria-expanded={showSettings}
+                onClick={() => {
+                  setShowSettings((open) => !open);
+                  setSettingsConfirm(null);
+                }}
+              >
+                <Settings2 size={17} />
+              </button>
+              {showSettings && (
+                <>
+                  <div className="settings-backdrop" onClick={closeSettings} />
+                  <div className="settings-menu" role="menu" data-testid="settings-menu">
+                    <div className="settings-menu-head">
+                      <span>数据源管理</span>
+                      <small>{datasets[activeWorkspace]?.sourceFile ?? "未选择"}</small>
+                    </div>
+                    <button
+                      role="menuitem"
+                      className="settings-menu-item danger"
+                      data-testid="settings-delete-source"
+                      onClick={() =>
+                        settingsConfirm === "delete"
+                          ? void handleDeleteActiveSource()
+                          : setSettingsConfirm("delete")
+                      }
+                    >
+                      <Trash2 size={15} />
+                      {settingsConfirm === "delete"
+                        ? "再点一次，确认删除"
+                        : "删除当前数据源"}
+                    </button>
+                    <button
+                      role="menuitem"
+                      className="settings-menu-item danger"
+                      data-testid="settings-clear-all"
+                      onClick={() =>
+                        settingsConfirm === "clear"
+                          ? void handleClearAllData()
+                          : setSettingsConfirm("clear")
+                      }
+                    >
+                      <Trash size={15} />
+                      {settingsConfirm === "clear"
+                        ? "再点一次，确认清空"
+                        : "清空全部本地索引"}
+                    </button>
+                    <div className="settings-menu-note">
+                      {cacheAvailable
+                        ? "删除仅影响本机浏览器索引，不影响原始文件。"
+                        : "浏览器拒绝了 IndexedDB，当前数据只在页面内存中。"}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
         <div className="content-area">{renderContent()}</div>
@@ -1563,121 +1683,173 @@ function StandardsView({
   onOpenField: (field: FieldRecord) => void;
 }) {
   const [filter, setFilter] = useState("");
-  const standards = dataset.standards.filter((standard) =>
-    `${standard.standardNo} ${standard.chineseName} ${standard.englishName}`
-      .toLowerCase()
-      .includes(filter.toLowerCase()),
+  const [visible, setVisible] = useState(80);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const keyword = filter.toLowerCase();
+  const filtered = useMemo(
+    () =>
+      dataset.standards.filter((standard) =>
+        `${standard.standardNo} ${standard.chineseName} ${standard.englishName}`
+          .toLowerCase()
+          .includes(keyword),
+      ),
+    [dataset.standards, keyword],
   );
-  const relatedFields = selectedStandard
-    ? dataset.fields.filter(
-        (field) => field.standardNo === selectedStandard.standardNo,
-      )
-    : [];
+  const visibleStandards = useMemo(
+    () => filtered.slice(0, visible),
+    [filtered, visible],
+  );
+  const relatedFields = useMemo(
+    () =>
+      selectedStandard
+        ? dataset.fields.filter(
+            (field) => field.standardNo === selectedStandard.standardNo,
+          )
+        : [],
+    [dataset.fields, selectedStandard],
+  );
+
+  useEffect(() => {
+    setVisible(80);
+  }, [keyword]);
+
+  useEffect(() => {
+    const element = sentinelRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible((current) => current + 80);
+        }
+      },
+      { root: element.closest(".scroll-list"), rootMargin: "320px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [keyword, visible]);
+
   return (
-    <div className="directory-view">
-      <div className="directory-header">
-        <div>
-          <span className="section-kicker">STANDARD LIBRARY</span>
-          <h1>数据标准</h1>
-          <p>字段定义背后的统一语义。</p>
+    <div className="compact-directory">
+      <aside className="compact-side">
+        <div className="compact-side-head">
+          <h2>数据标准</h2>
+          <span className="count-badge">
+            {dataset.stats.standardCount.toLocaleString("zh-CN")}
+          </span>
         </div>
-        <div className="directory-count">
-          <strong>{dataset.stats.standardCount}</strong>
-          <span>项标准</span>
+        <div className="mini-search">
+          <Search size={15} />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="筛选标准（名称 / 编号 / 英文）"
+            data-testid="standards-filter"
+          />
         </div>
-      </div>
-      <div className="directory-body">
-        <div className="directory-list-panel">
-          <div className="mini-search">
-            <Search size={15} />
-            <input
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="筛选标准"
-            />
-          </div>
-          {standards.map((standard) => (
-            <button
-              key={standard.id}
-              className={`directory-row ${selectedStandard?.id === standard.id ? "active" : ""}`}
-              onClick={() => onSelect(standard)}
-            >
-              <span>
-                <strong>{standard.chineseName}</strong>
-                <small>{standard.standardNo}</small>
+        {visibleStandards.length === 0 ? (
+          <div className="standards-empty">没有匹配的标准</div>
+        ) : (
+          <AnimatedList<StandardRecord>
+            className="standards-animated-list compact-list"
+            items={visibleStandards}
+            keyboardTarget="container"
+            onItemSelect={(standard) => onSelect(standard)}
+            footer={
+              visible < filtered.length ? (
+                <div
+                  ref={sentinelRef}
+                  className="standards-more"
+                  data-testid="standards-more"
+                >
+                  已显示 {visibleStandards.length.toLocaleString("zh-CN")} /{" "}
+                  {filtered.length.toLocaleString("zh-CN")}，滚动加载更多
+                </div>
+              ) : null
+            }
+            renderItem={(standard) => (
+              <span className="compact-row">
+                <strong>{standard.chineseName || standard.standardNo}</strong>
+                <small>
+                  {standard.standardNo}
+                  {standard.topic ? ` · ${standard.topic}` : ""}
+                </small>
               </span>
-              <ChevronRight size={15} />
-            </button>
-          ))}
-        </div>
-        <div className="directory-detail">
-          {selectedStandard ? (
-            <>
-              <div className="detail-header small">
+            )}
+          />
+        )}
+      </aside>
+      <div className="compact-detail">
+        {selectedStandard ? (
+          <>
+            <div className="detail-header small">
+              <div>
+                <div className="detail-breadcrumb">
+                  <span>数据标准</span>
+                  <ChevronRight size={13} />
+                  <span>{selectedStandard.topic || "当前标准"}</span>
+                </div>
+                <h2>{selectedStandard.chineseName}</h2>
+                <div className="table-english">
+                  <code>{selectedStandard.standardNo}</code>
+                  <CopyButton
+                    value={selectedStandard.standardNo}
+                    onCopy={(value) =>
+                      void navigator.clipboard?.writeText(value)
+                    }
+                  />
+                </div>
+              </div>
+              <span className="soft-badge blue">标准定义</span>
+            </div>
+            <div className="standard-properties">
+              <Property
+                label="英文简称"
+                value={selectedStandard.englishName || "—"}
+              />
+              <Property label="主题" value={selectedStandard.topic || "—"} />
+              <Property
+                label="数据类型"
+                value={selectedStandard.dataType || "—"}
+              />
+              <Property
+                label="长度 / 精度"
+                value={`${selectedStandard.dataLength || "—"} / ${selectedStandard.precision || "—"}`}
+              />
+            </div>
+            <div className="related-fields">
+              <div className="section-heading">
                 <div>
-                  <div className="detail-breadcrumb">
-                    <span>数据标准</span>
-                    <ChevronRight size={13} />
-                    <span>{selectedStandard.topic || "当前标准"}</span>
-                  </div>
-                  <h2>{selectedStandard.chineseName}</h2>
-                  <div className="table-english">
-                    <code>{selectedStandard.standardNo}</code>
-                    <CopyButton
-                      value={selectedStandard.standardNo}
-                      onCopy={(value) =>
-                        void navigator.clipboard?.writeText(value)
-                      }
-                    />
-                  </div>
+                  <span className="section-kicker">REFERENCES</span>
+                  <h2>
+                    引用字段 <small>{relatedFields.length}</small>
+                  </h2>
                 </div>
-                <span className="soft-badge blue">标准定义</span>
               </div>
-              <div className="standard-properties">
-                <Property
-                  label="英文简称"
-                  value={selectedStandard.englishName || "—"}
-                />
-                <Property label="主题" value={selectedStandard.topic || "—"} />
-                <Property
-                  label="数据类型"
-                  value={selectedStandard.dataType || "—"}
-                />
-                <Property
-                  label="长度 / 精度"
-                  value={`${selectedStandard.dataLength || "—"} / ${selectedStandard.precision || "—"}`}
-                />
-              </div>
-              <div className="related-fields">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-kicker">REFERENCES</span>
-                    <h2>
-                      引用字段 <small>{relatedFields.length}</small>
-                    </h2>
-                  </div>
-                </div>
-                {relatedFields.map((field) => (
-                  <button
-                    key={field.id}
-                    className="related-row"
-                    onClick={() => onOpenField(field)}
-                  >
-                    <span>
-                      <strong>{field.chineseName}</strong>
-                      <small>
-                        {field.tableChineseName} · {field.englishName}
-                      </small>
-                    </span>
-                    <ArrowUpRight size={15} />
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <EmptyState title="选择一个数据标准" />
-          )}
-        </div>
+              {relatedFields.slice(0, 300).map((field) => (
+                <button
+                  key={field.id}
+                  className="related-row"
+                  onClick={() => onOpenField(field)}
+                >
+                  <span>
+                    <strong>{field.chineseName}</strong>
+                    <small>
+                      {field.tableChineseName} · {field.englishName}
+                    </small>
+                  </span>
+                  <ArrowUpRight size={15} />
+                </button>
+              ))}
+              {relatedFields.length > 300 && (
+                <p className="standards-more">
+                  仅列出前 300 个引用字段，共 {relatedFields.length} 个。
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
+          <EmptyState title="选择一个数据标准" />
+        )}
       </div>
     </div>
   );
@@ -1695,139 +1867,177 @@ function CodesView({
   onOpenField: (field: FieldRecord) => void;
 }) {
   const [filter, setFilter] = useState("");
-  const items = dataset.codeItems.filter((code) =>
-    `${code.codeSetName} ${code.codeSetEnglishName} ${code.value} ${code.valueDescription}`
-      .toLowerCase()
-      .includes(filter.toLowerCase()),
+  const [visible, setVisible] = useState(80);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const keyword = filter.toLowerCase();
+  const items = useMemo(
+    () =>
+      dataset.codeItems.filter((code) =>
+        `${code.codeSetName} ${code.codeSetEnglishName} ${code.value} ${code.valueDescription}`
+          .toLowerCase()
+          .includes(keyword),
+      ),
+    [dataset.codeItems, keyword],
   );
-  const selectedName = selectedCode?.codeSetName.replace(/:$/, "");
-  const codeSetItems = selectedName
-    ? dataset.codeItems.filter((code) => code.codeSetName === selectedName)
-    : [];
-  const relatedFields = selectedName
-    ? dataset.fields.filter((field) => field.publicCodeName === selectedName)
-    : [];
+  const visibleItems = useMemo(() => items.slice(0, visible), [items, visible]);
+  const selectedName = selectedCode?.codeSetName.replace(":$", "");
+  const codeSetItems = useMemo(
+    () =>
+      selectedName
+        ? dataset.codeItems.filter((code) => code.codeSetName === selectedName)
+        : [],
+    [dataset.codeItems, selectedName],
+  );
+  const relatedFields = useMemo(
+    () =>
+      selectedName
+        ? dataset.fields.filter((field) => field.publicCodeName === selectedName)
+        : [],
+    [dataset.fields, selectedName],
+  );
+
+  useEffect(() => {
+    setVisible(80);
+  }, [keyword]);
+
+  useEffect(() => {
+    const element = sentinelRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible((current) => current + 80);
+        }
+      },
+      { root: element.closest(".scroll-list"), rootMargin: "320px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [keyword, visible]);
 
   return (
-    <div className="directory-view">
-      <div className="directory-header">
-        <div>
-          <span className="section-kicker">CODE DICTIONARY</span>
-          <h1>公共代码</h1>
-          <p>把代码值和字段语义放在一起看。</p>
+    <div className="compact-directory">
+      <aside className="compact-side">
+        <div className="compact-side-head">
+          <h2>公共代码</h2>
+          <span className="count-badge">
+            {dataset.stats.codeItemCount.toLocaleString("zh-CN")}
+          </span>
         </div>
-        <div className="directory-count">
-          <strong>{dataset.stats.codeItemCount}</strong>
-          <span>条代码</span>
+        <div className="mini-search" data-testid="code-directory-search">
+          <Search size={15} />
+          <input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder="筛选代码名称、值或描述"
+          />
         </div>
-      </div>
-      <div className="directory-body code-directory-body">
-        <div className="directory-list-panel">
-          <div className="mini-search" data-testid="code-directory-search">
-            <Search size={15} />
-            <input
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="筛选代码名称、值或描述"
-            />
-          </div>
-          <div
-            className="directory-list-scroll"
-            data-testid="code-directory-list"
-          >
-            {items.slice(0, 120).map((code) => (
-              <button
-                key={code.id}
-                className={`directory-row code-row ${selectedCode?.id === code.id ? "active" : ""}`}
-                onClick={() => onSelect(code)}
+        {visibleItems.length === 0 ? (
+          <div className="standards-empty">没有匹配的代码</div>
+        ) : (
+          <AnimatedList<DictionaryDataset["codeItems"][number]>
+            className="codes-animated-list compact-list"
+            items={visibleItems}
+            keyboardTarget="container"
+            onItemSelect={(code) => onSelect(code)}
+            footer={
+              visible < items.length ? (
+                <div
+                  ref={sentinelRef}
+                  className="standards-more"
+                  data-testid="codes-more"
+                >
+                  已显示 {visibleItems.length.toLocaleString("zh-CN")} /{" "}
+                  {items.length.toLocaleString("zh-CN")}，滚动加载更多
+                </div>
+              ) : null
+            }
+            renderItem={(code) => (
+              <span className="compact-row">
+                <strong>{code.codeSetName}</strong>
+                <small>
+                  {code.value} · {code.valueDescription}
+                </small>
+              </span>
+            )}
+          />
+        )}
+      </aside>
+      <div className="compact-detail codes">
+        {selectedCode ? (
+          <>
+            <div className="detail-header small">
+              <div>
+                <div className="detail-breadcrumb">
+                  <span>公共代码</span>
+                  <ChevronRight size={13} />
+                  <span>{selectedCode.codeSetName}</span>
+                </div>
+                <h2>{selectedCode.codeSetName}</h2>
+                <div className="table-english">
+                  <code>{selectedCode.codeSetEnglishName || "—"}</code>
+                </div>
+              </div>
+              <span className="soft-badge orange">
+                {codeSetItems.length} 个值
+              </span>
+            </div>
+            <div className="code-detail-grid">
+              <div
+                className="code-values code-values-scroll"
+                data-testid="code-values"
               >
-                <span>
-                  <strong>{code.codeSetName}</strong>
-                  <small>
-                    <code>{code.value}</code> · {code.valueDescription}
-                  </small>
-                </span>
-                <ChevronRight size={15} />
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="directory-detail code-directory-detail">
-          {selectedCode ? (
-            <>
-              <div className="detail-header small">
-                <div>
-                  <div className="detail-breadcrumb">
-                    <span>公共代码</span>
-                    <ChevronRight size={13} />
-                    <span>{selectedCode.codeSetName}</span>
+                {codeSetItems.map((code) => (
+                  <div key={code.id} className="code-value-row">
+                    <code>{code.value}</code>
+                    <span>{code.valueDescription}</span>
+                    <CopyButton
+                      value={code.value}
+                      onCopy={(value) =>
+                        void navigator.clipboard?.writeText(value)
+                      }
+                    />
                   </div>
-                  <h2>{selectedCode.codeSetName}</h2>
-                  <div className="table-english">
-                    <code>{selectedCode.codeSetEnglishName || "—"}</code>
+                ))}
+              </div>
+              <section
+                className="related-fields code-related-fields-scroll"
+                data-testid="code-related-fields"
+              >
+                <div className="section-heading">
+                  <div>
+                    <span className="section-kicker">REFERENCES</span>
+                    <h2>
+                      引用字段 <small>{relatedFields.length}</small>
+                    </h2>
                   </div>
                 </div>
-                <span className="soft-badge orange">
-                  {codeSetItems.length} 个值
-                </span>
-              </div>
-              <div className="code-detail-grid">
                 <div
-                  className="code-values code-values-scroll"
-                  data-testid="code-values"
+                  className="related-fields-list"
+                  data-testid="code-related-fields-list"
                 >
-                  {codeSetItems.map((code) => (
-                    <div key={code.id} className="code-value-row">
-                      <code>{code.value}</code>
-                      <span>{code.valueDescription}</span>
-                      <CopyButton
-                        value={code.value}
-                        onCopy={(value) =>
-                          void navigator.clipboard?.writeText(value)
-                        }
-                      />
-                    </div>
+                  {relatedFields.map((field) => (
+                    <button
+                      key={field.id}
+                      className="related-row"
+                      onClick={() => onOpenField(field)}
+                    >
+                      <span>
+                        <strong>{field.chineseName}</strong>
+                        <small>
+                          {field.tableChineseName} · {field.englishName}
+                        </small>
+                      </span>
+                      <ArrowUpRight size={15} />
+                    </button>
                   ))}
                 </div>
-                <section
-                  className="related-fields code-related-fields-scroll"
-                  data-testid="code-related-fields"
-                >
-                  <div className="section-heading">
-                    <div>
-                      <span className="section-kicker">REFERENCES</span>
-                      <h2>
-                        引用字段 <small>{relatedFields.length}</small>
-                      </h2>
-                    </div>
-                  </div>
-                  <div
-                    className="related-fields-list"
-                    data-testid="code-related-fields-list"
-                  >
-                    {relatedFields.map((field) => (
-                      <button
-                        key={field.id}
-                        className="related-row"
-                        onClick={() => onOpenField(field)}
-                      >
-                        <span>
-                          <strong>{field.chineseName}</strong>
-                          <small>
-                            {field.tableChineseName} · {field.englishName}
-                          </small>
-                        </span>
-                        <ArrowUpRight size={15} />
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            </>
-          ) : (
-            <EmptyState title="选择一个公共代码" />
-          )}
-        </div>
+              </section>
+            </div>
+          </>
+        ) : (
+          <EmptyState title="选择一个公共代码" />
+        )}
       </div>
     </div>
   );
