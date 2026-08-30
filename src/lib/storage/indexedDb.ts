@@ -181,6 +181,7 @@ export async function loadPersistedWorkspace(): Promise<PersistedWorkspace> {
     if (record?.schemaVersion === CACHE_SCHEMA_VERSION && record.datasets) {
       const result: PersistedWorkspace = {}
       for (const slot of ['warehouse', 'retail'] as const) {
+        if (!(slot in record.datasets)) continue
         const meta = await requestValue(transaction.objectStore(STORE_NAME).get(`${WORKSPACE_KEY}:${slot}`) as IDBRequest<PersistedDatasetRecord | undefined>)
         if (meta?.chunked) result[slot] = await readDataset(transaction, `${WORKSPACE_KEY}:${slot}`, meta)
       }
@@ -196,6 +197,26 @@ export async function loadPersistedWorkspace(): Promise<PersistedWorkspace> {
     const slot: DatasetSlot = activeDataset.dataset.adapterName === 'rcvp-retail-mart-adapter' ? 'retail' : 'warehouse'
     await completeTransaction(transaction)
     return { [slot]: activeDataset }
+  } finally {
+    database.close()
+  }
+}
+
+export async function deleteWorkspaceDataset(slot: DatasetSlot): Promise<void> {
+  const database = await openDatabase()
+  try {
+    const transaction = database.transaction(STORE_NAME, 'readwrite')
+    const store = transaction.objectStore(STORE_NAME)
+    const record = await requestValue(store.get(WORKSPACE_KEY) as IDBRequest<PersistedWorkspaceRecord | undefined>)
+    if (record?.schemaVersion === CACHE_SCHEMA_VERSION && record.datasets) {
+      const { [slot]: removed, ...rest } = record.datasets
+      void removed
+      if (Object.keys(rest).length === 0) store.delete(WORKSPACE_KEY)
+      else store.put({ id: WORKSPACE_KEY, schemaVersion: CACHE_SCHEMA_VERSION, datasets: rest } satisfies PersistedWorkspaceRecord)
+    }
+    store.delete(`${WORKSPACE_KEY}:${slot}`)
+    await deleteDatasetChunks(store, `${WORKSPACE_KEY}:${slot}`)
+    await completeTransaction(transaction)
   } finally {
     database.close()
   }

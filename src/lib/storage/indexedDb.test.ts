@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearPersistedDataset, loadPersistedDataset, loadPersistedWorkspace, savePersistedDataset, saveWorkspaceDataset } from './indexedDb'
+import { clearPersistedDataset, deleteWorkspaceDataset, loadPersistedDataset, loadPersistedWorkspace, savePersistedDataset, saveWorkspaceDataset } from './indexedDb'
 import type { DictionaryDataset } from '../import/types'
 
 const dataset: DictionaryDataset = {
@@ -45,6 +45,21 @@ describe('IndexedDB dataset cache', () => {
     expect(workspace.retail?.dataset.sourceFile).toBe('rcvp.xlsx')
     expect(workspace.warehouse?.source.fingerprint).toBe('dp-ial-v1')
     expect(workspace.retail?.source.fingerprint).toBe('rcvp-v1')
+  })
+
+  it('removes a workspace dataset completely without resurrecting it on reload', async () => {
+    const retailDataset = { ...dataset, sourceFile: 'rcvp.xlsx', adapterName: 'rcvp-retail-mart-adapter' }
+    await saveWorkspaceDataset('warehouse', dataset, { kind: 'uploaded', fingerprint: 'dp-ial-v1' })
+    await saveWorkspaceDataset('retail', retailDataset, { kind: 'uploaded', fingerprint: 'rcvp-v1' })
+
+    await deleteWorkspaceDataset('warehouse')
+
+    const workspace = await loadPersistedWorkspace()
+    expect(workspace.warehouse).toBeUndefined()
+    expect(workspace.retail?.dataset.sourceFile).toBe('rcvp.xlsx')
+
+    await deleteWorkspaceDataset('retail')
+    await expect(loadPersistedWorkspace()).resolves.toEqual({})
   })
 
   it('persists large collections as multiple chunk records', async () => {
