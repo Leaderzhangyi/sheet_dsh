@@ -14,3 +14,6 @@ assets/
 .agents/
 .codex/
 Codex Image*.png
+
+# Mimosa 本地扫描缓存
+.mimosa/
