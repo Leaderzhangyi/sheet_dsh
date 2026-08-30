@@ -47,6 +47,16 @@ const retailDataset: DictionaryDataset = {
   fields: [{ ...dataset.fields[0], id: 'M07_D_P_CUST_INFO:1:CUST_ID', tableId: 'M07_D_P_CUST_INFO', tableChineseName: '零售客户基本信息表', tableEnglishName: 'M07_D_P_CUST_INFO', chineseName: '客户编号', englishName: 'CUST_ID' }],
 }
 
+const groupedCodeDataset: DictionaryDataset = {
+  ...dataset,
+  codeItems: [
+    { ...dataset.codeItems[0], id: '抵债物处置方式代码:01:2', codeSetName: '抵债物处置方式代码', codeSetEnglishName: '', value: '01', valueDescription: '拍卖', sourceRow: 2 },
+    { ...dataset.codeItems[0], id: '抵债物处置方式代码:02:3', codeSetName: '抵债物处置方式代码', codeSetEnglishName: '', value: '02', valueDescription: '变卖', sourceRow: 3 },
+    { ...dataset.codeItems[0], id: '机构类型代码:01:5', codeSetName: '机构类型代码', value: '01', valueDescription: '总行', sourceRow: 5 },
+  ],
+  stats: { ...dataset.stats, codeItemCount: 3 },
+}
+
 const SAMPLE_DDL = `CREATE TABLE a_pub_staff_tab (
   data_dt date NOT NULL,
   staff_id varchar(10) NOT NULL PRIMARY KEY COMMENT '员工编号'
@@ -157,7 +167,7 @@ describe('application bootstrap', () => {
     expect(screen.getByText('总行')).toBeInTheDocument()
     expect(screen.getByTestId('code-values')).toHaveClass('code-values-scroll')
     expect(screen.getByTestId('code-directory-search')).toBeInTheDocument()
-    expect(document.querySelector('.codes-animated-list .scroll-list')).not.toBeNull()
+    expect(document.querySelector('.codes-list .scroll-list')).not.toBeNull()
     expect(screen.getByTestId('code-related-fields')).toHaveClass('code-related-fields-scroll')
     fireEvent.click(screen.getByTitle('复制'))
     expect(screen.queryByTestId('nav-revisions')).not.toBeInTheDocument()
@@ -169,7 +179,7 @@ describe('application bootstrap', () => {
     fireEvent.click(screen.getByRole('button', { name: '字段' }))
     fireEvent.click(screen.getByTestId('nav-tables'))
     fireEvent.change(screen.getByPlaceholderText('筛选表'), { target: { value: '完整机构' } })
-    fireEvent.click(screen.getByRole('button', { name: /完整机构信息表/ }))
+    fireEvent.click(screen.getByText('完整机构信息表', { selector: '.table-list-copy strong' }))
     fireEvent.change(screen.getByPlaceholderText('筛选字段'), { target: { value: '机构类型' } })
     fireEvent.click(screen.getByText('机构类型', { selector: 'td strong' }))
     fireEvent.click(screen.getByTitle('关闭字段详情'))
@@ -304,5 +314,114 @@ describe('application bootstrap', () => {
     fireEvent.click(screen.getByRole('button', { name: '跳转至 DP_IAL 字段' }))
     expect(screen.getByTestId('source-warehouse')).toHaveClass('active')
     expect(screen.getByTestId('field-detail')).toHaveTextContent('org_type')
+  })
+
+  it('lists each public code set once regardless of how many values it contains', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset: groupedCodeDataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-codes'))
+    expect(screen.getAllByText('抵债物处置方式代码', { selector: '.compact-row strong' })).toHaveLength(1)
+    expect(screen.getByText('2 个代码值')).toBeInTheDocument()
+    expect(screen.getByText('2 / 3')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('抵债物处置方式代码', { selector: '.compact-row strong' }))
+    expect(screen.getByText('拍卖')).toBeInTheDocument()
+    expect(screen.getByText('变卖')).toBeInTheDocument()
+    expect(mocks.readExcelFile).not.toHaveBeenCalled()
+  })
+
+  it('deletes a table manually from the catalog and persists the change', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-tables'))
+    const deleteButton = screen.getByRole('button', { name: '删除表：完整机构信息表' })
+    fireEvent.click(deleteButton)
+    fireEvent.click(deleteButton)
+
+    await waitFor(() => expect(screen.getByText('请选择一张表')).toBeInTheDocument())
+    expect(mocks.saveWorkspaceDataset).toHaveBeenCalledWith('warehouse', expect.objectContaining({ tables: [], fields: [] }), { kind: 'uploaded', fingerprint: 'manual-1' })
+  })
+
+  it('deletes a single field from the schema table and updates the field count', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-tables'))
+    const deleteButton = screen.getByRole('button', { name: '删除字段：机构类型' })
+    fireEvent.click(deleteButton)
+    fireEvent.click(deleteButton)
+
+    await waitFor(() => expect(screen.getByText('没有匹配字段')).toBeInTheDocument())
+    expect(screen.getByText('0', { selector: '.field-count' })).toBeInTheDocument()
+    expect(mocks.saveWorkspaceDataset).toHaveBeenCalledWith('warehouse', expect.objectContaining({ fields: [] }), expect.anything())
+  })
+
+  it('deletes a data standard manually', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-standards'))
+    const deleteButton = screen.getByRole('button', { name: '删除标准：机构类型' })
+    fireEvent.click(deleteButton)
+    fireEvent.click(deleteButton)
+
+    await waitFor(() => expect(screen.getByText('没有匹配的标准')).toBeInTheDocument())
+    expect(mocks.saveWorkspaceDataset).toHaveBeenCalledWith('warehouse', expect.objectContaining({ standards: [] }), expect.anything())
+  })
+
+  it('deletes a single code value and then a whole code set', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset: groupedCodeDataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-codes'))
+    fireEvent.click(screen.getByText('抵债物处置方式代码', { selector: '.compact-row strong' }))
+    const deleteValue = screen.getByRole('button', { name: '删除代码值：02' })
+    fireEvent.click(deleteValue)
+    fireEvent.click(deleteValue)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: '删除代码值：02' })).not.toBeInTheDocument())
+    expect(screen.getByText('1 个值')).toBeInTheDocument()
+
+    const deleteSet = screen.getByRole('button', { name: '删除代码集：抵债物处置方式代码' })
+    fireEvent.click(deleteSet)
+    fireEvent.click(deleteSet)
+
+    await waitFor(() => expect(screen.queryByText('抵债物处置方式代码', { selector: '.compact-row strong' })).not.toBeInTheDocument())
+    expect(screen.getByText('机构类型代码', { selector: '.compact-row strong' })).toBeInTheDocument()
+    expect(mocks.saveWorkspaceDataset).toHaveBeenCalledTimes(2)
+  })
+
+  it('toggles field columns from the schema settings button', async () => {
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-tables'))
+    fireEvent.click(screen.getByTestId('field-column-toggle'))
+    expect(screen.getByTestId('field-column-menu')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('field-column-type'))
+    expect(screen.queryByText('类型', { selector: '.field-table th' })).not.toBeInTheDocument()
+    expect(screen.queryByText('varchar')).not.toBeInTheDocument()
+    expect(screen.getByText('键', { selector: '.field-table th' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('field-column-type'))
+    expect(screen.getByText('类型', { selector: '.field-table th' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('field-column-code'))
+    expect(screen.queryByText('机构类型代码', { selector: '.field-table .code-link' })).not.toBeInTheDocument()
   })
 })

@@ -145,11 +145,6 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .compact-side { background: rgba(255,255,255,.72); border-right: 1px solid var(--line); padding: 18px 14px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .compact-side-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 6px 2px; }
 .compact-side-head h2 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
-.compact-list { --alist-surface: #ffffff; --alist-item-bg: #ffffff; --alist-item-bg-selected: #f4f8fb; --alist-text: #1c1c1b; --alist-scrollbar-thumb: #d9dcdf; --alist-scrollbar-track: #fafbfb; width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.compact-list .scroll-list { flex: 1; min-height: 0; max-height: none; padding: 2px 6px 8px 2px; }
-.compact-list .item { padding: 8px 11px; border: 1px solid var(--line); transition: border-color .16s ease, background .16s ease; }
-.compact-list .item:hover { border-color: #c6cbd0; }
-.compact-list .item.selected { border-color: #b9c9d7; background: #f4f8fb; }
 .compact-row { display: grid; gap: 3px; min-width: 0; }
 .compact-row strong { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compact-row small { color: #969b9f; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -173,6 +168,39 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .settings-menu-item.danger { color: var(--red); }
 .settings-menu-item.danger:hover { background: #fdf0ef; }
 .settings-menu-note { color: #a0a4a8; font-size: 9px; line-height: 1.6; padding: 9px 10px 6px; border-top: 1px solid var(--line); margin-top: 6px; }
+
+/* ---- 字段列显示设置 ---- */
+.field-settings-wrap { position: relative; display: inline-flex; }
+.field-column-menu { position: absolute; top: calc(100% + 9px); right: 0; z-index: 20; width: 208px; background: #fff; border: 1px solid #d9dcde; border-radius: 8px; box-shadow: 0 22px 60px rgba(28, 31, 33, .16); padding: 7px; }
+.field-column-menu-item { display: flex; align-items: center; gap: 9px; border-radius: 5px; padding: 8px 10px; font-size: 12px; color: #3f4448; cursor: pointer; user-select: none; }
+.field-column-menu-item:hover { background: #f5f6f7; }
+.field-column-menu-item input { accent-color: var(--blue); margin: 0; width: 13px; height: 13px; }
+
+/* ---- 手动删除 ---- */
+.icon-button.danger { color: #c2938f; }
+.icon-button.danger:hover { background: #fdf0ef; color: var(--red); }
+.row-delete { opacity: 0; transition: opacity .14s ease, background .16s ease, color .16s ease; }
+.row-delete.confirming { opacity: 1 !important; background: #f9e9e8; color: var(--red); }
+.danger-button { align-items: center; background: #fff; border: 1px solid #f0d4d2; border-radius: 5px; color: var(--red); display: inline-flex; font-size: 11px; gap: 6px; padding: 6px 11px; transition: .16s ease; }
+.danger-button:hover { background: #fdf0ef; border-color: #ecbcb8; }
+.danger-button.confirming { background: var(--red); border-color: var(--red); color: #fff; font-weight: 700; }
+.table-list-row { display: flex; align-items: center; gap: 3px; }
+.table-list-row .table-list-item { flex: 1; min-width: 0; }
+.table-list-row .row-delete { flex: 0 0 auto; }
+.table-list-row:hover .row-delete { opacity: 1; }
+.field-table td.row-actions > * { display: inline-flex; vertical-align: middle; }
+.field-table td.row-actions .row-delete { margin-right: 4px; }
+.field-table tbody tr:hover .row-delete, .field-table tbody tr.selected .row-delete { opacity: 1; }
+.compact-row-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.compact-row-wrap .compact-row { flex: 1; }
+.virtual-list .item:hover .row-delete, .virtual-list .item.selected .row-delete { opacity: 1; }
+.code-value-actions { display: inline-flex; align-items: center; gap: 3px; }
+
+@media (max-width: 680px) {
+  .table-list-row { flex: 0 0 auto; min-width: 200px; background: #fff; border: 1px solid var(--line); padding-right: 4px; }
+  .table-list-row .table-list-item { min-width: 0; border: 0; background: transparent; }
+  .table-list-row:has(.table-list-item.active) { border-color: var(--red); }
+}
 .ddl-import { display: grid; gap: 10px; margin-top: 4px; }
 .ddl-name-input { height: 34px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 11px; font-size: 11px; color: var(--ink); background: #fff; }.ddl-name-input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-name-input::placeholder { color: #b3b7bb; }
 .ddl-textarea { min-height: 300px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 12px 13px; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; font-size: 11px; line-height: 1.7; color: var(--ink); background: #fbfcfc; resize: vertical; }.ddl-textarea:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }.ddl-textarea::placeholder { color: #b6babe; }
@@ -191,5 +219,5 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 
 @media (max-width: 920px) { .code-detail-grid { grid-template-columns: minmax(0, 1fr) minmax(220px, .6fr); gap: 16px; } }
 @media (max-width: 920px) { .compact-directory { grid-template-columns: 262px minmax(0, 1fr); } }
-@media (max-width: 680px) { .compact-directory { display: block; height: auto; min-height: 0; }.compact-side { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }.compact-list .scroll-list { max-height: 210px; }.compact-detail, .compact-detail.codes { padding: 20px 17px 40px; }.compact-detail.codes .code-detail-grid { display: block; }.compact-detail.codes .code-detail-grid .code-values-scroll { max-height: 300px; } }
+@media (max-width: 680px) { .compact-directory { display: block; height: auto; min-height: 0; }.compact-side { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }.virtual-list .scroll-list { max-height: 210px; }.compact-detail, .compact-detail.codes { padding: 20px 17px 40px; }.compact-detail.codes .code-detail-grid { display: block; }.compact-detail.codes .code-detail-grid .code-values-scroll { max-height: 300px; } }
 @media (max-width: 680px) { .code-directory-body { height: auto; min-height: 0; }.code-directory-detail { display: block; overflow: visible; }.code-detail-grid { display: block; }.code-detail-grid .code-values-scroll, .code-related-fields-scroll { max-height: 360px; }.code-related-fields-scroll { display: flex; }.directory-list-scroll { max-height: 230px; } }
