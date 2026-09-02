@@ -13,6 +13,8 @@ export interface TableRecord {
   retention: string
   collection: string
   usage: string
+  /** 标签/视图类实体：默认不出现在表目录，可通过开关显示 */
+  entityKind?: 'tag' | 'view'
   sourceSheet: string
   sourceRow: number
 }
@@ -58,6 +60,8 @@ export interface StandardRecord {
   dataType: string
   dataLength: string
   precision: string
+  /** 标准声明的关联公共代码集名称（rcvp 标准信息项的“引用代码中文名称”） */
+  publicCodeName?: string
   sourceSheet: string
   sourceRow: number
 }

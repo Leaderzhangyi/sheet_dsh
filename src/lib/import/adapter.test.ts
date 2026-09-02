@@ -110,4 +110,44 @@ describe('workbook import adapters', () => {
     expect(dataset.codeItems[0]).toMatchObject({ codeSetName: '客户类型代码', valueDescription: '个人客户' })
     expect(dataset.revisions[0]).toMatchObject({ modifiedAt: '20241111', reason: '新增客户编号字段', operation: '新增', operator: '王洋' })
   })
+
+  it('restores rcvp linkage columns and separates tag/view entities from the catalog', () => {
+    const dataset = importWorkbook([
+      makeSheet('模型实体清单', [
+        ['序号', '一级主题', '二级主题', '表中文名', '表英文名', '业务含义及范围说明'],
+        [1, '零售集市', '明细层', '零售客户基本信息表', 'M07_D_P_CUST_INFO', '个人客户信息'],
+        [2, '零售集市', '应用层', '标签管理系统标签表', 'M07_A_TAG_P_CUST_INFO_LMP', '标签宽表'],
+        [3, '零售集市', '应用层', '标签管理系统标签视图', 'M07_A_TAG_P_CUST_INFO_MATERIAL_VIEW_LMP', '物化视图'],
+        [4, '零售集市', '应用层', '零售客户视图贷款明细表', 'M07_S_P_LOAN_DETAIL', '视图'],
+      ]),
+      makeSheet('标签管理系统标签表', [
+        ['数据开始日期', '20241120'],
+        ['字段序号', '表中文名', '表英文名称', '字段中文名', '数据类型', '字段英文名', '字段类型', '是否主键', '是否可为空', '引用标准编号(中文匹配）', '引用标准编号(英文匹配）', '引用代码中文名称', '引用标准代码（码值）'],
+        [1, '标签管理系统标签表', 'M07_A_TAG_P_CUST_INFO_LMP', '性别代码', '枚举', 'GENDER_CD', 'VARCHAR(1)', 'Y', null, 'SCBTS0006024', 'SCBTS0006024', '性别代码', '查看代码'],
+        [2, '标签管理系统标签表', 'M07_A_TAG_P_CUST_INFO_LMP', '生日', '日期', 'BIRTH_DT', 'DATE', null, null, '42', '42', '/', '42'],
+      ]),
+      makeSheet('标准信息项（7月修订）', [
+        ['标准体系', '标准类型', '信息项中文名称', '英文名称', '英文简称', '标准编号', '主题', '数据类型', '数据长度', '数据精度', '是否代码', '引用代码中文名称'],
+        ['四川银行数据标准体系', '技术数据标准', '性别代码', 'Gender', 'GENDER', 'SCBTS0006024', '客户', '变长字符串', '1', '', '是', '性别代码'],
+      ]),
+      makeSheet('公共代码标准(版本时刻与信息项保持一致）', [
+        ['代码编号', '代码中文名称', '代码值', '代码值说明', '业务说明'],
+        ['CDAS0006024', '性别代码', '0', '未知', ''],
+      ]),
+    ])
+
+    const byEnglish = (englishName: string) => dataset.tables.find((table) => table.englishName === englishName)
+    expect(byEnglish('M07_D_P_CUST_INFO')?.entityKind).toBeUndefined()
+    expect(byEnglish('M07_A_TAG_P_CUST_INFO_LMP')?.entityKind).toBe('tag')
+    expect(byEnglish('M07_A_TAG_P_CUST_INFO_MATERIAL_VIEW_LMP')?.entityKind).toBe('tag')
+    expect(byEnglish('M07_S_P_LOAN_DETAIL')?.entityKind).toBe('view')
+
+    const gender = dataset.fields.find((field) => field.englishName === 'GENDER_CD')
+    expect(gender).toMatchObject({ standardNo: 'SCBTS0006024', publicCodeName: '性别代码', isPrimaryKey: true })
+    const birthday = dataset.fields.find((field) => field.englishName === 'BIRTH_DT')
+    expect(birthday).toMatchObject({ standardNo: '', publicCodeName: '' })
+
+    expect(dataset.standards[0].publicCodeName).toBe('性别代码')
+    expect(dataset.codeItems[0].standardNo).toBe('CDAS0006024')
+  })
 })

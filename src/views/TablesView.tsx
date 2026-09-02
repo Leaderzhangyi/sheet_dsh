@@ -58,10 +58,16 @@ export default memo(function TablesView({
   onDeleteField: (fieldId: string) => void;
 }) {
   const [filter, setFilter] = useState("");
-  const visibleTables = dataset.tables.filter((table) =>
-    `${table.chineseName} ${table.englishName}`
-      .toLowerCase()
-      .includes(filter.toLowerCase()),
+  const [showTagViews, setShowTagViews] = useState(false);
+  // 标签管理系统的标签/各类视图默认不混入表目录，可通过开关查看。
+  const dataTables = dataset.tables.filter((table) => !table.entityKind);
+  const tagViewCount = dataset.tables.length - dataTables.length;
+  const keyword = filter.toLowerCase();
+  const visibleTables = (showTagViews ? dataset.tables : dataTables).filter(
+    (table) =>
+      `${table.chineseName} ${table.englishName}`
+        .toLowerCase()
+        .includes(keyword),
   );
   const fields = selectedTable
     ? dataset.fields.filter((field) => field.tableId === selectedTable.id)
@@ -74,7 +80,10 @@ export default memo(function TablesView({
             <span className="section-kicker">CATALOG</span>
             <h2>表目录</h2>
           </div>
-          <span className="count-badge">{dataset.tables.length}</span>
+          <span className="count-badge" title="数据表 / 标签视图">
+            {dataTables.length}
+            {tagViewCount > 0 ? ` +${tagViewCount}` : ""}
+          </span>
         </div>
         <div className="mini-search">
           <Search size={15} />
@@ -84,6 +93,17 @@ export default memo(function TablesView({
             placeholder="筛选表"
           />
         </div>
+        {tagViewCount > 0 && (
+          <button
+            type="button"
+            className={`filter-chip tag-toggle ${showTagViews ? "selected" : ""}`}
+            data-testid="toggle-tag-views"
+            aria-pressed={showTagViews}
+            onClick={() => setShowTagViews((current) => !current)}
+          >
+            {showTagViews ? "隐藏" : "显示"}标签/视图 · {tagViewCount}
+          </button>
+        )}
         <div className="table-list">
           {visibleTables.map((table) => (
             <div key={table.id} className="table-list-row">
@@ -95,6 +115,13 @@ export default memo(function TablesView({
                   <strong>{table.chineseName}</strong>
                   <small>{table.englishName}</small>
                 </span>
+                {table.entityKind && (
+                  <span
+                    className={`soft-badge entity-badge ${table.entityKind === "tag" ? "orange" : "blue"}`}
+                  >
+                    {table.entityKind === "tag" ? "标签" : "视图"}
+                  </span>
+                )}
                 <span className="field-count">{table.fieldCount}</span>
               </button>
               <ConfirmIconButton

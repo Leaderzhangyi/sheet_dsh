@@ -731,6 +731,7 @@ function App() {
     if (!dataset) return null;
     const selectedTable =
       dataset.tables.find((table) => table.id === selectedTableId) ??
+      dataset.tables.find((table) => !table.entityKind) ??
       dataset.tables[0];
     const selectedField =
       dataset.fields.find((field) => field.id === selectedFieldId) ?? null;
@@ -789,6 +790,7 @@ function App() {
           selectedStandard={selectedStandard}
           onSelect={openStandard}
           onOpenField={openField}
+          onOpenCode={openCode}
           onDeleteStandard={handleDeleteStandard}
         />
       );

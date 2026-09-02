@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { ArrowUpRight, ChevronRight, Search } from "lucide-react";
+import { ArrowUpRight, Braces, ChevronRight, Search } from "lucide-react";
 import type {
   DictionaryDataset,
   FieldRecord,
@@ -14,12 +14,14 @@ export default memo(function StandardsView({
   selectedStandard,
   onSelect,
   onOpenField,
+  onOpenCode,
   onDeleteStandard,
 }: {
   dataset: DictionaryDataset;
   selectedStandard: StandardRecord | null;
   onSelect: (standard: StandardRecord) => void;
   onOpenField: (field: FieldRecord) => void;
+  onOpenCode: (id: string) => void;
   onDeleteStandard: (standardId: string) => void;
 }) {
   const [filter, setFilter] = useState("");
@@ -136,6 +138,26 @@ export default memo(function StandardsView({
                 value={`${selectedStandard.dataLength || "—"} / ${selectedStandard.precision || "—"}`}
               />
             </div>
+            {selectedStandard.publicCodeName && (
+              <div className="detail-section standard-code-link">
+                <div className="detail-section-label">关联公共代码</div>
+                <div className="relation-list">
+                  <button
+                    data-testid="standard-code-link"
+                    onClick={() =>
+                      onOpenCode(`${selectedStandard.publicCodeName}:`)
+                    }
+                  >
+                    <Braces size={15} />
+                    <span>
+                      <strong>{selectedStandard.publicCodeName}</strong>
+                      <small>代码集</small>
+                    </span>
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="related-fields">
               <div className="section-heading">
                 <div>

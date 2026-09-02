@@ -195,6 +195,9 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .compact-row-wrap .compact-row { flex: 1; }
 .virtual-list .item:hover .row-delete, .virtual-list .item.selected .row-delete { opacity: 1; }
 .code-value-actions { display: inline-flex; align-items: center; gap: 3px; }
+.tag-toggle { margin: 10px 9px 0; }
+.entity-badge { flex: 0 0 auto; }
+.standard-code-link { margin-top: 20px; }
 
 @media (max-width: 680px) {
   .table-list-row { flex: 0 0 auto; min-width: 200px; background: #fff; border: 1px solid var(--line); padding-right: 4px; }

@@ -403,6 +403,37 @@ describe('application bootstrap', () => {
     expect(mocks.saveWorkspaceDataset).toHaveBeenCalledTimes(2)
   })
 
+  it('hides tag/view entities by default and links standards to code sets', async () => {
+    const tagDataset: DictionaryDataset = {
+      ...dataset,
+      tables: [
+        dataset.tables[0],
+        { ...dataset.tables[0], id: 't-tag', chineseName: '标签管理系统标签表', englishName: 'M07_A_TAG_P_CUST_INFO_LMP', entityKind: 'tag' },
+        { ...dataset.tables[0], id: 't-view', chineseName: '零售客户视图贷款明细表', englishName: 'M07_S_P_LOAN_DETAIL', entityKind: 'view' },
+      ],
+      standards: [{ ...dataset.standards[0], publicCodeName: '机构类型代码' }],
+    }
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset: tagDataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-tables'))
+    expect(screen.queryByText('标签管理系统标签表', { selector: '.table-list-copy strong' })).not.toBeInTheDocument()
+    expect(screen.getByText('1 +2')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('toggle-tag-views'))
+    expect(screen.getByText('标签管理系统标签表', { selector: '.table-list-copy strong' })).toBeInTheDocument()
+    expect(screen.getByText('标签', { selector: '.entity-badge' })).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('toggle-tag-views'))
+    expect(screen.queryByText('标签管理系统标签表', { selector: '.table-list-copy strong' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('nav-standards'))
+    fireEvent.click(screen.getByText('机构类型', { selector: '.compact-row strong' }))
+    fireEvent.click(screen.getByTestId('standard-code-link'))
+    expect(screen.getByRole('heading', { name: '机构类型代码' })).toBeInTheDocument()
+    expect(screen.getByText('总行')).toBeInTheDocument()
+  })
+
   it('toggles field columns from the schema settings button', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')

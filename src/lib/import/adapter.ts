@@ -73,12 +73,12 @@ const aliases: Record<ColumnKey, string[]> = {
   fieldEnglishName: ['目标字段英文名称', '字段英文名', 'field_en', 'field_name_en'],
   fieldType: ['高斯_目标字段数据类型', '目标字段数据类型', '字段类型', 'type', 'field_type'],
   srFieldType: ['SR_目标字段数据类型', 'sr_type', 'field_type_sr'],
-  primaryKey: ['主键', 'primary_key', 'is_primary_key'],
+  primaryKey: ['主键', '是否主键', 'primary_key', 'is_primary_key'],
   distributionKey: ['分布键', 'distribution_key', 'is_distribution_key'],
   partitionKey: ['分区键', 'partition_key', 'is_partition_key'],
   dataLength: ['数据标准长度', '字符型长度', '数据长度', 'data_length', 'length'],
   standardNo: ['映射标准编号(V2.0版)', '引用标准编号(中文匹配）', '标准编号', 'standard_no', 'standard_id'],
-  publicCodeName: ['引用的公共代码', '公共代码', 'public_code', 'code_name'],
+  publicCodeName: ['引用的公共代码', '公共代码', '引用代码中文名称', 'public_code', 'code_name'],
   remark: ['备注', '说明', 'remark', 'note'],
   topic: ['一级主题', '主题', 'topic'],
   businessScope: ['业务含义及范围说明', '业务范围', 'business_scope'],
@@ -96,7 +96,7 @@ const aliases: Record<ColumnKey, string[]> = {
   codeSetEnglishName: ['代码英文名称', '代码集英文名', 'code_set_en', 'code_name_en'],
   codeValue: ['代码值', 'code_value', 'value'],
   codeDescription: ['代码值说明', '代码值描述', '代码描述', 'code_description', 'value_description'],
-  codeStandardNo: ['引用标准代码编号', '引用标准编号', 'code_standard_no'],
+  codeStandardNo: ['引用标准代码编号', '引用标准编号', '代码编号', 'code_standard_no'],
   codeStandardName: ['引用标准代码名称', '引用标准名称', 'code_standard_name'],
   modifiedAt: ['日期', '修改时间', '修改日期', 'modified_at', 'change_time'],
   before: ['修改前(中文名，英文名，字段类型）', '修改前', 'before'],
@@ -120,6 +120,24 @@ const clean = (value: unknown) => String(value ?? '').trim()
 const normalizeType = (value: unknown) => clean(value).toLowerCase()
 const toFlag = (value: unknown) => ['y', 'yes', 'true', '是', '1'].includes(clean(value).toLowerCase())
 const toOrdinal = (value: unknown) => Number.parseInt(clean(value), 10) || 0
+
+// 源表用 "/"、"42" 或说明性文字占位"无关联"的链接列，统一清洗为空，避免生成假双链。
+const linkPlaceholders = new Set(['/', '无', '无代码映射，字段置空', '无代码映射', '未引用代码', '非代码', '无标准映射'])
+const cleanLinkValue = (value: unknown) => {
+  const text = clean(value)
+  if (!text) return ''
+  if (linkPlaceholders.has(text)) return ''
+  if (/^\d+(\.\d+)?$/.test(text)) return ''
+  return text
+}
+
+// 标签/视图类实体识别：标签管理系统的标签、各类视图/物化视图默认不混入表目录。
+const detectEntityKind = (chineseName: string, englishName: string): 'tag' | 'view' | undefined => {
+  const upper = englishName.toUpperCase()
+  if (/标签/.test(chineseName) || /(^|_)TAG(_|$)|_TAG_/.test(upper) || upper.includes('TAG_P_') || upper.includes('TAG_BATCH') || upper.includes('TAG_GROUP')) return 'tag'
+  if (/视图/.test(chineseName) || upper.includes('VIEW') || upper.includes('VW_')) return 'view'
+  return undefined
+}
 
 const indexHeaders = (headers: unknown[]) => {
   const normalized = headers.map(normalizeHeader)
@@ -208,6 +226,7 @@ export function importWorkbook(sheets: RawSheet[], options: { sourceFile?: strin
           owner: clean(valueAt(row, indexes, 'owner')), loadFrequency: clean(valueAt(row, indexes, 'loadFrequency')),
           loadStrategy: clean(valueAt(row, indexes, 'loadStrategy')), retention: clean(valueAt(row, indexes, 'retention')),
           collection: clean(valueAt(row, indexes, 'collection')), usage: clean(valueAt(row, indexes, 'usage')),
+          ...(detectEntityKind(chineseName, englishName) ? { entityKind: detectEntityKind(chineseName, englishName) } : {}),
           sourceSheet: sheet.name, sourceRow,
         })
       }
@@ -239,7 +258,7 @@ export function importWorkbook(sheets: RawSheet[], options: { sourceFile?: strin
           ordinal: toOrdinal(valueAt(row, indexes, 'fieldOrdinal')), chineseName: clean(valueAt(row, indexes, 'fieldChineseName')),
           englishName: clean(valueAt(row, indexes, 'fieldEnglishName')), fieldType: normalizeType(valueAt(row, indexes, 'fieldType')),
           srFieldType: normalizeType(valueAt(row, indexes, 'srFieldType')), dataLength: clean(valueAt(row, indexes, 'dataLength')),
-          standardNo: clean(valueAt(row, indexes, 'standardNo')), publicCodeName: clean(valueAt(row, indexes, 'publicCodeName')),
+          standardNo: cleanLinkValue(valueAt(row, indexes, 'standardNo')), publicCodeName: cleanLinkValue(valueAt(row, indexes, 'publicCodeName')),
           remark: clean(valueAt(row, indexes, 'remark')), isPrimaryKey: toFlag(valueAt(row, indexes, 'primaryKey')),
           isDistributionKey: toFlag(valueAt(row, indexes, 'distributionKey')), isPartitionKey: toFlag(valueAt(row, indexes, 'partitionKey')),
           ...(hasLineage ? { lineage } : {}),
@@ -249,11 +268,14 @@ export function importWorkbook(sheets: RawSheet[], options: { sourceFile?: strin
       if (kind === 'standard') {
         const standardNo = clean(valueAt(row, indexes, 'standardNo'))
         if (!standardNo) return
+        const publicCodeName = cleanLinkValue(valueAt(row, indexes, 'publicCodeName'))
         standards.push({
           id: standardNo, standardNo, chineseName: clean(valueAt(row, indexes, 'standardChineseName')),
           englishName: clean(valueAt(row, indexes, 'standardEnglishName')), topic: clean(valueAt(row, indexes, 'topic')),
           dataType: clean(valueAt(row, indexes, 'dataType')), dataLength: clean(valueAt(row, indexes, 'dataLength')),
-          precision: clean(valueAt(row, indexes, 'precision')), sourceSheet: sheet.name, sourceRow,
+          precision: clean(valueAt(row, indexes, 'precision')),
+          ...(publicCodeName ? { publicCodeName } : {}),
+          sourceSheet: sheet.name, sourceRow,
         })
       }
       if (kind === 'code') {
@@ -261,7 +283,7 @@ export function importWorkbook(sheets: RawSheet[], options: { sourceFile?: strin
           id: `${clean(valueAt(row, indexes, 'codeSetName'))}:${clean(valueAt(row, indexes, 'codeValue'))}:${sourceRow}`,
           codeSetName: clean(valueAt(row, indexes, 'codeSetName')), codeSetEnglishName: clean(valueAt(row, indexes, 'codeSetEnglishName')),
           value: clean(valueAt(row, indexes, 'codeValue')), valueDescription: clean(valueAt(row, indexes, 'codeDescription')),
-          standardNo: clean(valueAt(row, indexes, 'codeStandardNo')), standardName: clean(valueAt(row, indexes, 'codeStandardName')),
+          standardNo: cleanLinkValue(valueAt(row, indexes, 'codeStandardNo')), standardName: clean(valueAt(row, indexes, 'codeStandardName')),
           sourceSheet: sheet.name, sourceRow,
         })
       }
@@ -286,6 +308,7 @@ export function importWorkbook(sheets: RawSheet[], options: { sourceFile?: strin
     else uniqueTables.set(field.tableId, {
       id: field.tableId, chineseName: field.tableChineseName, englishName: field.tableEnglishName, fieldCount: 1,
       topic: '', businessScope: '', owner: '', loadFrequency: '', loadStrategy: '', retention: '', collection: '', usage: '',
+      ...(detectEntityKind(field.tableChineseName, field.tableEnglishName) ? { entityKind: detectEntityKind(field.tableChineseName, field.tableEnglishName) } : {}),
       sourceSheet: field.sourceSheet, sourceRow: field.sourceRow,
     })
   }
