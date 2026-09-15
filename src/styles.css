@@ -212,7 +212,9 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .insight-config-grid input, .insight-config-grid select { height: 32px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); min-width: 0; }
 .insight-config-grid select:disabled { color: #b1b4b8; background: #f5f6f7; }
 .insight-config-grid input:focus-visible, .insight-config-grid select:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
-.insight-test-button { height: 32px; white-space: nowrap; }
+.insight-test-button { height: 32px; white-space: nowrap; background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+.insight-test-button:hover { background: #33618e; border-color: #33618e; color: #fff; }
+.insight-test-button:disabled { opacity: .6; cursor: wait; }
 .insight-status { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 10px; color: var(--green); }
 .insight-config-note { margin: 9px 0 0; color: #a0a4a8; font-size: 9px; line-height: 1.6; }
 .insight-progress { margin-top: 18px; border: 1px solid var(--line); background: #fbfcfc; border-radius: 6px; padding: 13px 15px; display: grid; gap: 10px; }
