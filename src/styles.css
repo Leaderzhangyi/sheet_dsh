@@ -201,22 +201,32 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 
 /* ---- 洞察思路 ---- */
 .nav-divider { height: 1px; background: var(--line); margin: 10px 14px 8px; }
-.insight-config { border: 1px solid var(--line); background: #fbfcfc; border-radius: 6px; padding: 12px 14px; margin-top: 18px; }
-.insight-config-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; margin-top: 10px; }
-.insight-config-grid label { display: grid; gap: 4px; font-size: 10px; color: #858b90; }
-.insight-config-grid input { height: 30px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); }
-.insight-config-grid input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
+.insights-page { max-width: 1160px; margin: 0 auto; padding: 53px 43px 90px; }
+.insights-page .directory-header h1 { margin: 12px 0 9px; font-size: 30px; letter-spacing: -.04em; }
+.insights-page .directory-header p { margin: 0; color: #92979c; font-size: 12px; }
+.insights-page .directory-header .primary-button:disabled { opacity: .55; cursor: not-allowed; }
+.insight-overview { margin-top: 30px; }
+.insight-config { border: 1px solid var(--line); background: #fbfcfc; border-radius: 6px; padding: 14px 16px; margin-top: 26px; }
+.insight-config-grid { display: grid; grid-template-columns: 1.4fr 1.2fr auto 1fr; gap: 12px; align-items: end; margin-top: 12px; }
+.insight-config-grid label { display: grid; gap: 5px; font-size: 10px; color: #858b90; }
+.insight-config-grid input, .insight-config-grid select { height: 32px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); min-width: 0; }
+.insight-config-grid select:disabled { color: #b1b4b8; background: #f5f6f7; }
+.insight-config-grid input:focus-visible, .insight-config-grid select:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
+.insight-test-button { height: 32px; white-space: nowrap; }
+.insight-status { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 10px; color: var(--green); }
 .insight-config-note { margin: 9px 0 0; color: #a0a4a8; font-size: 9px; line-height: 1.6; }
 .insight-error { display: flex; align-items: center; gap: 7px; color: var(--red); background: #fdf0ef; border: 1px solid #f0d4d2; border-radius: 5px; padding: 9px 11px; margin-top: 14px; font-size: 11px; }
-.insights-empty-hint { margin-top: 20px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.8; padding: 34px 20px; border: 1px dashed var(--line); border-radius: 6px; }
-.insight-result { margin-top: 16px; }
+.insights-empty-hint { margin-top: 26px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.9; padding: 40px 24px; border: 1px dashed var(--line); border-radius: 6px; }
+.insight-result { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 6px; }
 .insight-heading { font-size: 13px; margin: 18px 0 6px; color: var(--ink); letter-spacing: -.01em; }
 .insight-list { margin: 6px 0; padding-left: 18px; }
 .insight-list li { font-size: 11px; color: #555b60; line-height: 1.8; }
 .insight-paragraph { font-size: 11px; color: #555b60; line-height: 1.8; margin: 6px 0; }
 .insight-code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 5px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
 .insight-code code { font-size: 10px; color: #31596a; line-height: 1.7; white-space: pre-wrap; }
-.insights-detail .detail-header .primary-button { align-self: flex-start; }
+
+@media (max-width: 920px) { .insight-config-grid { grid-template-columns: 1fr 1fr; }.insights-page { padding-inline: 28px; } }
+@media (max-width: 680px) { .insight-config-grid { grid-template-columns: 1fr; }.insights-page { padding: 36px 17px 60px; } }
 
 @media (max-width: 680px) {
   .table-list-row { flex: 0 0 auto; min-width: 200px; background: #fff; border: 1px solid var(--line); padding-right: 4px; }

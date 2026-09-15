@@ -809,9 +809,7 @@ function App() {
       );
     }
     if (activeNav === "insights") {
-      return (
-        <InsightsView dataset={dataset} initialTableId={selectedTableId} />
-      );
+      return <InsightsView dataset={dataset} />;
     }
     return (
       <SourcesView

@@ -1,10 +1,19 @@
-import { memo, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, ChevronRight, Lightbulb, Search } from "lucide-react";
-import type { DictionaryDataset, TableRecord } from "../lib/import/types";
-import VirtualList from "../components/VirtualList";
-import { EmptyState } from "../components/Primitives";
+import { memo, useState, type ReactNode } from "react";
 import {
-  buildInsightPrompt,
+  AlertTriangle,
+  BookOpen,
+  Braces,
+  Check,
+  Code2,
+  Layers3,
+  Lightbulb,
+  Link2,
+  Table2,
+} from "lucide-react";
+import type { DictionaryDataset } from "../lib/import/types";
+import {
+  buildDatasetInsightPrompt,
+  listModels,
   loadLlmConfig,
   requestInsights,
   saveLlmConfig,
@@ -91,42 +100,37 @@ function MarkdownLite({ text }: { text: string }) {
 
 export default memo(function InsightsView({
   dataset,
-  initialTableId,
 }: {
   dataset: DictionaryDataset;
-  initialTableId: string;
 }) {
-  const [filter, setFilter] = useState("");
-  const [selectedId, setSelectedId] = useState(initialTableId);
   const [config, setConfig] = useState<LlmConfig>(() => loadLlmConfig());
+  const [models, setModels] = useState<string[]>([]);
+  const [testing, setTesting] = useState(false);
+  const [testStatus, setTestStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [results, setResults] = useState<Record<string, string>>({});
+  const [result, setResult] = useState("");
 
-  const selected = useMemo(
-    () =>
-      dataset.tables.find((table) => table.id === selectedId) ??
-      dataset.tables.find((table) => !table.entityKind) ??
-      null,
-    [dataset.tables, selectedId],
-  );
-  const fields = useMemo(
-    () =>
-      selected
-        ? dataset.fields.filter((field) => field.tableId === selected.id)
-        : [],
-    [dataset.fields, selected],
-  );
-  const keyword = filter.toLowerCase();
-  const filteredTables = useMemo(
-    () =>
-      dataset.tables.filter((table) =>
-        `${table.chineseName} ${table.englishName}`
-          .toLowerCase()
-          .includes(keyword),
-      ),
-    [dataset.tables, keyword],
-  );
+  const dataTables = dataset.tables.filter((table) => !table.entityKind);
+  const tagViewCount = dataset.tables.length - dataTables.length;
+  const codeSetCount = new Set(
+    dataset.codeItems.map((code) => code.codeSetName),
+  ).size;
+  const topicCount = new Set(
+    dataset.tables.map((table) => table.topic || "未分类"),
+  ).size;
+  const standardRefCount = dataset.fields.filter(
+    (field) => field.standardNo,
+  ).length;
+
+  const metrics = [
+    { label: "数据表", value: dataTables.length, icon: Table2, accent: "red" },
+    { label: "字段", value: dataset.fields.length, icon: Braces, accent: "blue" },
+    { label: "数据标准", value: dataset.standards.length, icon: BookOpen, accent: "green" },
+    { label: "代码集", value: codeSetCount, icon: Code2, accent: "orange" },
+    { label: "挂标准字段", value: standardRefCount, icon: Link2, accent: "blue" },
+    { label: "主题域", value: topicCount, icon: Layers3, accent: "green" },
+  ];
 
   const updateConfig = (patch: Partial<LlmConfig>) => {
     setConfig((current) => {
@@ -136,10 +140,38 @@ export default memo(function InsightsView({
     });
   };
 
+  const testConnection = async () => {
+    setTesting(true);
+    setTestStatus("");
+    setError("");
+    try {
+      const available = await listModels(config);
+      setModels(available);
+      setTestStatus(`已连接，发现 ${available.length} 个可用模型`);
+      setConfig((current) => {
+        const model = available.includes(current.model)
+          ? current.model
+          : available[0];
+        const next = { ...current, model };
+        saveLlmConfig(next);
+        return next;
+      });
+    } catch (testError) {
+      setModels([]);
+      setTestStatus("");
+      setError(
+        testError instanceof Error
+          ? `连接失败：${testError.message}`
+          : "连接失败，请检查服务地址与网络。",
+      );
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const generate = async () => {
-    if (!selected) return;
-    if (!config.baseUrl.trim() || !config.model.trim()) {
-      setError("请先填写模型服务地址与模型名称。");
+    if (!config.model) {
+      setError("请先测试连接并选择模型。");
       return;
     }
     setLoading(true);
@@ -147,9 +179,9 @@ export default memo(function InsightsView({
     try {
       const content = await requestInsights(
         config,
-        buildInsightPrompt(selected, fields),
+        buildDatasetInsightPrompt(dataset),
       );
-      setResults((current) => ({ ...current, [selected.id]: content }));
+      setResult(content);
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -161,140 +193,129 @@ export default memo(function InsightsView({
     }
   };
 
+  const ready = models.length > 0 && Boolean(config.model);
+
   return (
-    <div className="compact-directory">
-      <aside className="compact-side">
-        <div className="compact-side-head">
-          <h2>洞察思路</h2>
-          <span className="count-badge">{dataset.tables.length}</span>
+    <div className="insights-page">
+      <div className="directory-header">
+        <div>
+          <span className="section-kicker">AI INSIGHTS</span>
+          <h1>洞察思路</h1>
+          <p>
+            面向整个数据源（{dataset.sourceFile}）生成业务洞察：资产全景、
+            {tagViewCount > 0 ? `${tagViewCount} 个标签/视图、` : ""}
+            分析场景与落地建议。
+          </p>
         </div>
-        <div className="mini-search">
-          <Search size={15} />
-          <input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder="选择要分析的数据表"
-          />
-        </div>
-        <VirtualList<TableRecord>
-          className="insights-table-list"
-          ariaLabel="数据表列表"
-          items={filteredTables}
-          getItemKey={(table) => table.id}
-          onItemSelect={(table) => setSelectedId(table.id)}
-          renderItem={(table) => (
-            <span className="compact-row-wrap">
-              <span className="compact-row">
-                <strong>{table.chineseName}</strong>
-                <small>
-                  {table.englishName} · {table.fieldCount} 字段
-                </small>
-              </span>
-              {table.entityKind && (
-                <span
-                  className={`soft-badge entity-badge ${table.entityKind === "tag" ? "orange" : "blue"}`}
-                >
-                  {table.entityKind === "tag" ? "标签" : "视图"}
-                </span>
-              )}
-            </span>
-          )}
-        />
-      </aside>
-      <div className="compact-detail insights-detail">
-        {selected ? (
-          <>
-            <div className="detail-header small">
-              <div>
-                <div className="detail-breadcrumb">
-                  <span>洞察思路</span>
-                  <ChevronRight size={13} />
-                  <span>{selected.topic || "数据表"}</span>
-                </div>
-                <h2>{selected.chineseName}</h2>
-                <div className="table-english">
-                  <code>{selected.englishName}</code>
-                  <span className="soft-badge blue">{fields.length} 字段</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="primary-button"
-                data-testid="insight-generate"
-                disabled={loading}
-                onClick={() => void generate()}
-              >
-                <Lightbulb size={15} />
-                {loading ? "生成中…" : "生成洞察思路"}
-              </button>
-            </div>
-
-            <div className="insight-config">
-              <div className="detail-section-label">
-                模型服务（OpenAI 兼容 /chat/completions）
-              </div>
-              <div className="insight-config-grid">
-                <label>
-                  服务地址
-                  <input
-                    data-testid="insight-base"
-                    value={config.baseUrl}
-                    onChange={(event) =>
-                      updateConfig({ baseUrl: event.target.value })
-                    }
-                    placeholder="https://llm.intra/v1"
-                  />
-                </label>
-                <label>
-                  模型
-                  <input
-                    data-testid="insight-model"
-                    value={config.model}
-                    onChange={(event) =>
-                      updateConfig({ model: event.target.value })
-                    }
-                    placeholder="如 glm-4、qwen2.5-72b"
-                  />
-                </label>
-                <label>
-                  API Key（可选）
-                  <input
-                    data-testid="insight-key"
-                    type="password"
-                    value={config.apiKey}
-                    onChange={(event) =>
-                      updateConfig({ apiKey: event.target.value })
-                    }
-                    placeholder="内网网关可不填"
-                  />
-                </label>
-              </div>
-              <p className="insight-config-note">
-                配置仅保存在本机浏览器。生成时会把所选表的字段名与备注发送至上方地址，请确认其符合行内数据安全要求。
-              </p>
-            </div>
-
-            {error && (
-              <div className="insight-error">
-                <AlertTriangle size={15} />
-                {error}
-              </div>
-            )}
-
-            {results[selected.id] ? (
-              <MarkdownLite text={results[selected.id]} />
-            ) : (
-              <div className="insights-empty-hint">
-                {loading
-                  ? "正在生成，稍候…"
-                  : "点击右上角“生成洞察思路”，基于该表字段生成业务理解、可回答的业务问题、指标维度与示例 SQL 思路。"}
-              </div>
-            )}
-          </>
-        ) : (
-          <EmptyState title="选择一张数据表" />
-        )}
+        <button
+          type="button"
+          className="primary-button"
+          data-testid="insight-generate"
+          disabled={loading || !ready}
+          onClick={() => void generate()}
+        >
+          <Lightbulb size={16} />
+          {loading ? "生成中…" : "生成洞察思路"}
+        </button>
       </div>
+
+      <div className="insight-overview">
+        <div className="metrics-grid">
+          {metrics.map(({ label, value, icon: Icon, accent }) => (
+            <div className="metric-card" key={label}>
+              <div className={`metric-icon ${accent}`}>
+                <Icon size={17} />
+              </div>
+              <div>
+                <strong>{value.toLocaleString("zh-CN")}</strong>
+                <span>{label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="insight-config">
+        <div className="detail-section-label">
+          模型服务（OpenAI 兼容；配置仅保存在本机浏览器）
+        </div>
+        <div className="insight-config-grid">
+          <label>
+            服务地址
+            <input
+              data-testid="insight-base"
+              value={config.baseUrl}
+              onChange={(event) => updateConfig({ baseUrl: event.target.value })}
+              placeholder="https://llm.intra/v1"
+            />
+          </label>
+          <label>
+            API Key（可选）
+            <input
+              data-testid="insight-key"
+              type="password"
+              value={config.apiKey}
+              onChange={(event) => updateConfig({ apiKey: event.target.value })}
+              placeholder="内网网关可不填"
+            />
+          </label>
+          <button
+            type="button"
+            className="secondary-button insight-test-button"
+            data-testid="insight-test"
+            disabled={testing}
+            onClick={() => void testConnection()}
+          >
+            {testing ? "测试中…" : "测试连接"}
+          </button>
+          <label className="insight-model-field">
+            模型（测试连接后选择）
+            <select
+              data-testid="insight-model"
+              value={config.model}
+              disabled={models.length === 0}
+              onChange={(event) => updateConfig({ model: event.target.value })}
+            >
+              {models.length === 0 ? (
+                <option value={config.model}>
+                  {config.model || "请先点击“测试连接”"}
+                </option>
+              ) : (
+                models.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+        </div>
+        {testStatus && (
+          <p className="insight-status ok" data-testid="insight-status">
+            <Check size={12} /> {testStatus}
+          </p>
+        )}
+        <p className="insight-config-note">
+          生成时会把本数据源的表名、主题分布、字段引用统计发送至上方地址，请确认其符合行内数据安全要求。
+        </p>
+      </div>
+
+      {error && (
+        <div className="insight-error">
+          <AlertTriangle size={15} />
+          {error}
+        </div>
+      )}
+
+      {result ? (
+        <MarkdownLite text={result} />
+      ) : (
+        <div className="insights-empty-hint">
+          {loading
+            ? "正在生成，稍候…"
+            : "填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察：数据资产全景、主题域与核心实体、业务分析场景、高价值关联路径、落地建议。"}
+        </div>
+      )}
     </div>
   );
 });

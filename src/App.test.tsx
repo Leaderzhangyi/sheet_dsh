@@ -434,7 +434,7 @@ describe('application bootstrap', () => {
     expect(screen.getByText('总行')).toBeInTheDocument()
   })
 
-  it('renders the insights page under a divided nav entry and generates ideas via the configured model', async () => {
+  it('generates dataset-level insights after testing the model connection', async () => {
     window.localStorage.clear()
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')
@@ -444,28 +444,41 @@ describe('application bootstrap', () => {
     expect(document.querySelector('.nav-divider')).not.toBeNull()
     fireEvent.click(screen.getByTestId('nav-insights'))
     expect(screen.getByRole('heading', { name: '洞察思路' })).toBeInTheDocument()
+    expect(screen.getByText('dp_ial.xlsx')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('完整机构信息表', { selector: '.compact-row strong' }))
-    expect(screen.getByText('a_pub_org_info_tab')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
-    fireEvent.change(screen.getByTestId('insight-model'), { target: { value: 'test-model' } })
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: '## 一、业务理解\n- 客户机构信息全景分析' } }] }),
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'glm-4-flash' }, { id: 'glm-4' }] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '## 一、数据资产全景\n- 全行机构数据资产' } }] }) }
     })
     vi.stubGlobal('fetch', fetchMock)
+
+    // 未测试连接前：模型下拉禁用，生成按钮禁用
+    expect(screen.getByTestId('insight-model')).toBeDisabled()
+    expect(screen.getByTestId('insight-generate')).toBeDisabled()
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.change(screen.getByTestId('insight-key'), { target: { value: 'sk-test' } })
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已连接，发现 2 个可用模型/)
+
+    // 测试成功后自动选中第一个模型，可切换
+    fireEvent.change(screen.getByTestId('insight-model'), { target: { value: 'glm-4' } })
+    expect(screen.getByTestId('insight-generate')).toBeEnabled()
+
     fireEvent.click(screen.getByTestId('insight-generate'))
-    await screen.findByText('客户机构信息全景分析')
-    expect(fetchMock).toHaveBeenCalledOnce()
-    const [endpoint, init] = fetchMock.mock.calls[0]
-    expect(endpoint).toBe('http://llm.intra/v1/chat/completions')
-    expect(init.method).toBe('POST')
-    const requestBody = JSON.parse(init.body)
-    expect(requestBody.model).toBe('test-model')
-    expect(requestBody.messages[0].content).toContain('机构类型')
+    await screen.findByText('全行机构数据资产')
+
+    const modelsCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/models'))
+    expect(modelsCall?.[0]).toBe('http://llm.intra/v1/models')
+    const chatCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/chat/completions')) as unknown as [string, RequestInit]
+    expect(chatCall[0]).toBe('http://llm.intra/v1/chat/completions')
+    expect(chatCall[1].method).toBe('POST')
+    const requestBody = JSON.parse(String(chatCall[1].body))
+    expect(requestBody.model).toBe('glm-4')
+    expect(requestBody.messages[0].content).toContain('dp_ial.xlsx')
+    expect(requestBody.messages[0].content).toContain('完整机构信息表')
     vi.unstubAllGlobals()
   })
 
