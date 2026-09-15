@@ -434,6 +434,41 @@ describe('application bootstrap', () => {
     expect(screen.getByText('总行')).toBeInTheDocument()
   })
 
+  it('renders the insights page under a divided nav entry and generates ideas via the configured model', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    expect(document.querySelector('.nav-divider')).not.toBeNull()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+    expect(screen.getByRole('heading', { name: '洞察思路' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('完整机构信息表', { selector: '.compact-row strong' }))
+    expect(screen.getByText('a_pub_org_info_tab')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.change(screen.getByTestId('insight-model'), { target: { value: 'test-model' } })
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: '## 一、业务理解\n- 客户机构信息全景分析' } }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    fireEvent.click(screen.getByTestId('insight-generate'))
+    await screen.findByText('客户机构信息全景分析')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [endpoint, init] = fetchMock.mock.calls[0]
+    expect(endpoint).toBe('http://llm.intra/v1/chat/completions')
+    expect(init.method).toBe('POST')
+    const requestBody = JSON.parse(init.body)
+    expect(requestBody.model).toBe('test-model')
+    expect(requestBody.messages[0].content).toContain('机构类型')
+    vi.unstubAllGlobals()
+  })
+
   it('toggles field columns from the schema settings button', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')

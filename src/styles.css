@@ -199,6 +199,25 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .entity-badge { flex: 0 0 auto; }
 .standard-code-link { margin-top: 20px; }
 
+/* ---- 洞察思路 ---- */
+.nav-divider { height: 1px; background: var(--line); margin: 10px 14px 8px; }
+.insight-config { border: 1px solid var(--line); background: #fbfcfc; border-radius: 6px; padding: 12px 14px; margin-top: 18px; }
+.insight-config-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; margin-top: 10px; }
+.insight-config-grid label { display: grid; gap: 4px; font-size: 10px; color: #858b90; }
+.insight-config-grid input { height: 30px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); }
+.insight-config-grid input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
+.insight-config-note { margin: 9px 0 0; color: #a0a4a8; font-size: 9px; line-height: 1.6; }
+.insight-error { display: flex; align-items: center; gap: 7px; color: var(--red); background: #fdf0ef; border: 1px solid #f0d4d2; border-radius: 5px; padding: 9px 11px; margin-top: 14px; font-size: 11px; }
+.insights-empty-hint { margin-top: 20px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.8; padding: 34px 20px; border: 1px dashed var(--line); border-radius: 6px; }
+.insight-result { margin-top: 16px; }
+.insight-heading { font-size: 13px; margin: 18px 0 6px; color: var(--ink); letter-spacing: -.01em; }
+.insight-list { margin: 6px 0; padding-left: 18px; }
+.insight-list li { font-size: 11px; color: #555b60; line-height: 1.8; }
+.insight-paragraph { font-size: 11px; color: #555b60; line-height: 1.8; margin: 6px 0; }
+.insight-code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 5px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+.insight-code code { font-size: 10px; color: #31596a; line-height: 1.7; white-space: pre-wrap; }
+.insights-detail .detail-header .primary-button { align-self: flex-start; }
+
 @media (max-width: 680px) {
   .table-list-row { flex: 0 0 auto; min-width: 200px; background: #fff; border: 1px solid var(--line); padding-right: 4px; }
   .table-list-row .table-list-item { min-width: 0; border: 0; background: transparent; }

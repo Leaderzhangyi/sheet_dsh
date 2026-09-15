@@ -1,13 +1,26 @@
-import { BookOpen, Braces, Search, Table2 } from "lucide-react";
+import { BookOpen, Braces, Lightbulb, Search, Table2 } from "lucide-react";
 import type { SearchType } from "./search/search";
 
-export type NavKey = "search" | "tables" | "standards" | "codes" | "sources";
+export type NavKey =
+  | "search"
+  | "tables"
+  | "standards"
+  | "codes"
+  | "insights"
+  | "sources";
 
-export const navItems: { key: NavKey; label: string; icon: typeof Search }[] = [
+export const navItems: {
+  key: NavKey;
+  label: string;
+  icon: typeof Search;
+  /** true 时在主导航里渲染为独立分组（前加分隔线） */
+  divider?: boolean;
+}[] = [
   { key: "search", label: "全局搜索", icon: Search },
   { key: "tables", label: "表目录", icon: Table2 },
   { key: "standards", label: "数据标准", icon: BookOpen },
   { key: "codes", label: "公共代码", icon: Braces },
+  { key: "insights", label: "洞察思路", icon: Lightbulb, divider: true },
 ];
 
 export const typeLabels: Record<SearchType, string> = {

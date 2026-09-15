@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import {
   ArrowLeft,
   ChevronRight,
@@ -54,6 +54,7 @@ import CodesView from "./views/CodesView";
 import SourcesView from "./views/SourcesView";
 import ImportDialog from "./views/ImportDialog";
 import BootstrapScreen from "./views/BootstrapScreen";
+import InsightsView from "./views/InsightsView";
 
 function App() {
   const [datasets, setDatasets] = useState<WorkspaceDatasets>({});
@@ -807,6 +808,11 @@ function App() {
         />
       );
     }
+    if (activeNav === "insights") {
+      return (
+        <InsightsView dataset={dataset} initialTableId={selectedTableId} />
+      );
+    }
     return (
       <SourcesView
         dataset={dataset}
@@ -845,21 +851,23 @@ function App() {
         </div>
         <div className="sidebar-section-label">工作区</div>
         <nav className="nav-list" aria-label="主导航">
-          {navItems.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              className={`nav-item ${activeNav === key ? "active" : ""}`}
-              onClick={() => {
-                setActiveNav(key);
-                setSelectedFieldId(null);
-                setNavigationStack([]);
-              }}
-              data-testid={`nav-${key}`}
-            >
-              <Icon size={17} />
-              <span>{label}</span>
-              {key === "search" && <kbd>⌘ K</kbd>}
-            </button>
+          {navItems.map(({ key, label, icon: Icon, divider }) => (
+            <Fragment key={key}>
+              {divider && <div className="nav-divider" role="separator" />}
+              <button
+                className={`nav-item ${activeNav === key ? "active" : ""}`}
+                onClick={() => {
+                  setActiveNav(key);
+                  setSelectedFieldId(null);
+                  setNavigationStack([]);
+                }}
+                data-testid={`nav-${key}`}
+              >
+                <Icon size={17} />
+                <span>{label}</span>
+                {key === "search" && <kbd>⌘ K</kbd>}
+              </button>
+            </Fragment>
           ))}
         </nav>
         <div className="sidebar-section-label source-label">
