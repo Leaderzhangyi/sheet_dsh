@@ -225,6 +225,25 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .insight-basis summary { cursor: pointer; font-size: 11px; color: #5e666b; user-select: none; }
 .insight-basis summary:hover { color: var(--blue); }
 .insight-basis pre { margin: 10px 0 2px; max-height: 280px; overflow: auto; background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 5px; padding: 10px 12px; font-size: 10px; line-height: 1.7; color: #31596a; white-space: pre-wrap; }
+.insight-reasoning { margin-top: 16px; border: 1px dashed #c9ced2; background: #fafbfc; border-radius: 6px; padding: 10px 13px; }
+.insight-reasoning summary { cursor: pointer; font-size: 11px; color: #8a9095; user-select: none; }
+.insight-reasoning summary:hover { color: #5e666b; }
+.insight-reasoning pre { margin: 10px 0 2px; max-height: 240px; overflow: auto; background: #f6f7f8; border-radius: 5px; padding: 10px 12px; font-size: 10px; line-height: 1.7; color: #7c8288; white-space: pre-wrap; }
+.insight-output-head { margin-top: 22px; border-top: 1px solid #dadddf; padding-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.insight-output-title { display: flex; align-items: baseline; gap: 10px; }
+.insight-output-title strong { font-size: 15px; }
+.insight-output-title small { color: #9ca0a4; font-size: 10px; }
+.insight-output-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.insight-table { border-collapse: collapse; margin: 10px 0; font-size: 11px; width: 100%; }
+.insight-table th, .insight-table td { border: 1px solid #dfe3e6; padding: 7px 10px; text-align: left; color: #555b60; }
+.insight-table th { background: #f7f9fa; color: #3e4448; font-size: 10px; white-space: nowrap; }
+.insight-result code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 3px; padding: 0 4px; font-size: 10px; color: #31596a; }
+.insight-result strong { color: #1c1c1b; }
+.insight-excerpt { position: relative; max-height: 640px; overflow: hidden; }
+.insight-excerpt::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: linear-gradient(to bottom, rgba(255,255,255,0), #fff); pointer-events: none; }
+.insight-excerpt .insight-expand { position: relative; z-index: 1; }
+.insight-expand { display: inline-flex; align-items: center; gap: 5px; margin: 12px 0 4px; border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 8px 14px; font-size: 11px; color: #5e666b; cursor: pointer; }
+.insight-expand:hover { border-color: #c8ced2; color: var(--ink); }
 .insight-error { display: flex; align-items: center; gap: 7px; color: var(--red); background: #fdf0ef; border: 1px solid #f0d4d2; border-radius: 5px; padding: 9px 11px; margin-top: 14px; font-size: 11px; }
 .insights-empty-hint { margin-top: 26px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.9; padding: 40px 24px; border: 1px dashed var(--line); border-radius: 6px; }
 .insight-result { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 6px; }

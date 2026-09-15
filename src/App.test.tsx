@@ -526,6 +526,55 @@ describe('application bootstrap', () => {
     vi.unstubAllGlobals()
   })
 
+  it('surfaces reasoning progress, renders markdown tables and offers preview actions', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+
+    const encoder = new TextEncoder()
+    const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
+    const content =
+      '## 一、数据资产全景\n' +
+      '| 主题域 | 核心实体 | 建议指标 |\n' +
+      '| --- | --- | --- |\n' +
+      '| 机构 | a_pub_org_info_tab | 机构数量 |\n' +
+      '| 存款 | a_pub_dpsit_tab | 存款余额 |\n'
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(sse({ choices: [{ delta: { reasoning_content: '先分析主题分布…' } }] }))
+        controller.enqueue(sse({ choices: [{ delta: { reasoning_content: '再确定核心实体。' } }] }))
+        controller.enqueue(sse({ choices: [{ delta: { content } }] }))
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'glm-4.5' }] }) }
+      }
+      return { ok: true, status: 200, headers: { get: () => 'text/event-stream' }, body }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已连接，发现 1 个可用模型/)
+    fireEvent.click(screen.getByTestId('insight-generate'))
+
+    await screen.findByRole('table')
+    expect(screen.getByRole('columnheader', { name: '主题域' })).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: 'a_pub_org_info_tab' })).toBeInTheDocument()
+    expect(screen.getByTestId('insight-reasoning')).toHaveTextContent('先分析主题分布')
+    expect(screen.getByTestId('insight-copy')).toBeInTheDocument()
+    expect(screen.getByTestId('insight-download-md')).toBeInTheDocument()
+    expect(screen.getByTestId('insight-download-html')).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
   it('toggles field columns from the schema settings button', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')

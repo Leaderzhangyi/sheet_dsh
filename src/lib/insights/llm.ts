@@ -34,6 +34,19 @@ function resolveEndpoint(base: string, path: "models" | "chat/completions"): str
   return `${trimmed}/${path}`;
 }
 
+/** 服务地址只允许 http/https，拦截 file:、javascript: 等危险协议。 */
+function assertHttpAddress(baseUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl.trim());
+  } catch {
+    throw new Error("服务地址格式不正确。");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("服务地址仅支持 http/https。");
+  }
+}
+
 function authHeaders(apiKey: string): Record<string, string> {
   return apiKey.trim()
     ? { Authorization: `Bearer ${apiKey.trim()}` }
@@ -43,6 +56,7 @@ function authHeaders(apiKey: string): Record<string, string> {
 /** 测试连通性并拉取可用模型列表（GET /models，OpenAI 兼容）。 */
 export async function listModels(config: LlmConfig): Promise<string[]> {
   if (!config.baseUrl.trim()) throw new Error("请先填写服务地址。");
+  assertHttpAddress(config.baseUrl);
   const response = await fetch(resolveEndpoint(config.baseUrl, "models"), {
     method: "GET",
     headers: { ...authHeaders(config.apiKey) },
@@ -123,10 +137,19 @@ export function buildDatasetInsightPrompt(dataset: DictionaryDataset): string {
 }
 
 export interface InsightRequestHandlers {
-  /** 流式输出：每收到一段增量文本回调一次（服务不支持流式时会在结束时整段回调一次）。 */
+  /** 流式输出：每收到一段增量正文回调一次（服务不支持流式时会在结束时整段回调一次）。 */
   onDelta?: (chunk: string) => void;
+  /** 思考型模型（如 GLM-4.5+）的思考过程增量；思考阶段可能持续较久，单独透出避免"卡死"观感。 */
+  onReasoning?: (chunk: string) => void;
   /** 传入 AbortSignal 可随时中止生成。 */
   signal?: AbortSignal;
+}
+
+interface SseDelta {
+  choices?: {
+    delta?: { content?: string; reasoning_content?: string };
+    message?: { content?: string };
+  }[];
 }
 
 export async function requestInsights(
@@ -134,6 +157,7 @@ export async function requestInsights(
   prompt: string,
   handlers: InsightRequestHandlers = {},
 ): Promise<string> {
+  assertHttpAddress(config.baseUrl);
   const response = await fetch(resolveEndpoint(config.baseUrl, "chat/completions"), {
     method: "POST",
     headers: {
@@ -155,53 +179,89 @@ export async function requestInsights(
     throw new Error(`模型服务返回 ${response.status}。`);
   }
 
-  // 服务端忽略 stream 参数、直接整段返回 JSON 时，走一次性回调。
+  const emit = (json: SseDelta, full: { content: string }) => {
+    const delta = json.choices?.[0]?.delta;
+    if (typeof delta?.reasoning_content === "string" && delta.reasoning_content) {
+      handlers.onReasoning?.(delta.reasoning_content);
+    }
+    const piece =
+      typeof delta?.content === "string" && delta.content
+        ? delta.content
+        : typeof json.choices?.[0]?.message?.content === "string"
+          ? json.choices[0].message.content
+          : "";
+    if (piece) {
+      full.content += piece;
+      handlers.onDelta?.(piece);
+    }
+  };
+
+  // 没有响应体（部分网关/mock 直接给 JSON）：整段解析。
+  if (!response.body) {
+    const payload = (await response.json()) as SseDelta;
+    const full = { content: "" };
+    emit(payload, full);
+    if (!full.content.trim()) throw new Error("模型服务未返回内容。");
+    return full.content;
+  }
+
+  // 首块嗅探：很多网关的 SSE 响应缺少 text/event-stream 头，
+  // 不能只信 content-type —— 以首个数据块是否以 "data:" 开头来判断流式/整段。
   const contentType =
     typeof response.headers?.get === "function"
       ? response.headers.get("content-type") ?? ""
       : "";
-  if (!contentType.includes("text/event-stream") || !response.body) {
-    const payload = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = payload.choices?.[0]?.message?.content ?? "";
-    if (typeof content !== "string" || !content.trim()) {
-      throw new Error("模型服务未返回内容。");
-    }
-    handlers.onDelta?.(content);
-    return content;
-  }
-
-  // SSE 流式解析：data: {"choices":[{"delta":{"content":"…"}}]}
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
-  let full = "";
+  let firstChunk = "";
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    firstChunk += decoder.decode(value, { stream: true });
+    if (firstChunk.trim()) break;
+  }
+  const isSse =
+    contentType.includes("text/event-stream") ||
+    firstChunk.trimStart().replace(/^\uFEFF/, "").startsWith("data:");
+
+  if (!isSse) {
+    // 整段 JSON：把剩余内容拼完后一次解析。
+    let rest = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      rest += decoder.decode(value, { stream: true });
+    }
+    const payload = JSON.parse(firstChunk + rest) as SseDelta;
+    const full = { content: "" };
+    emit(payload, full);
+    if (!full.content.trim()) throw new Error("模型服务未返回内容。");
+    return full.content;
+  }
+
+  // SSE 流式解析：data: {"choices":[{"delta":{"content":"…","reasoning_content":"…"}}]}
+  let buffer = firstChunk;
+  const full = { content: "" };
+  const consumeLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) return;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+    try {
+      emit(JSON.parse(data) as SseDelta, full);
+    } catch {
+      // 跳过无法解析的心跳/注释行
+    }
+  };
+  for (;;) {
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
-      try {
-        const json = JSON.parse(data) as {
-          choices?: { delta?: { content?: string } }[];
-        };
-        const delta = json.choices?.[0]?.delta?.content;
-        if (typeof delta === "string" && delta) {
-          full += delta;
-          handlers.onDelta?.(delta);
-        }
-      } catch {
-        // 跳过无法解析的心跳/注释行
-      }
-    }
+    for (const line of lines) consumeLine(line);
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
   }
-  if (!full.trim()) throw new Error("模型服务未返回内容。");
-  return full;
+  if (buffer) consumeLine(buffer);
+  if (!full.content.trim()) throw new Error("模型服务未返回内容。");
+  return full.content;
 }

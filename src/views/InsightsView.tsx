@@ -4,7 +4,12 @@ import {
   BookOpen,
   Braces,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Clipboard,
   Code2,
+  Download,
+  FileCode2,
   Layers3,
   Lightbulb,
   Link2,
@@ -19,31 +24,96 @@ import {
   saveLlmConfig,
   type LlmConfig,
 } from "../lib/insights/llm";
+import { buildInsightHtmlDocument } from "../lib/insights/markdown";
 
-/** 极简 Markdown 渲染：标题/列表/代码块，够展示模型输出即可，不引第三方库。 */
+const PREVIEW_LINE_COUNT = 36;
+
+/** 行内格式：**加粗** 与 `代码`。利用 split 捕获组切分，避免手动遍历正则。 */
+function renderInline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  for (const part of text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)) {
+    if (!part) continue;
+    if (part.startsWith("**") && part.endsWith("**")) {
+      nodes.push(<strong key={nodes.length}>{part.slice(2, -2)}</strong>);
+    } else if (part.startsWith("`") && part.endsWith("`")) {
+      nodes.push(<code key={nodes.length}>{part.slice(1, -1)}</code>);
+    } else {
+      nodes.push(part);
+    }
+  }
+  return nodes;
+}
+
+const isTableRow = (line: string) => line.trim().startsWith("|");
+const isTableSeparator = (line: string) =>
+  line
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .every((cell) => /^:?-{2,}:?$/.test(cell));
+const tableCells = (line: string): string[] =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+
+/** 极简 Markdown 渲染：标题/列表/表格/代码块，与导出渲染器同构，不引第三方库。 */
 function MarkdownLite({ text }: { text: string }) {
   const blocks: ReactNode[] = [];
   let codeLines: string[] | null = null;
   let listItems: string[] = [];
+  let tableRows: string[] = [];
   let key = 0;
+
   const flushList = () => {
     if (listItems.length) {
       blocks.push(
         <ul className="insight-list" key={`list-${key++}`}>
           {listItems.map((item, index) => (
-            <li key={index}>{item}</li>
+            <li key={index}>{renderInline(item)}</li>
           ))}
         </ul>,
       );
       listItems = [];
     }
   };
+  const flushTable = () => {
+    if (!tableRows.length) return;
+    const rows = tableRows.filter((row) => !isTableSeparator(row));
+    const [header, ...body] = rows;
+    blocks.push(
+      <table className="insight-table" key={`table-${key++}`}>
+        {header ? (
+          <thead>
+            <tr>
+              {tableCells(header).map((cell, index) => (
+                <th key={index}>{renderInline(cell)}</th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {body.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {tableCells(row).map((cell, cellIndex) => (
+                <td key={cellIndex}>{renderInline(cell)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>,
+    );
+    tableRows = [];
+  };
+
   for (const rawLine of text.split("\n")) {
-    const line = rawLine.replace(/\*\*/g, "");
-    const trimmed = line.trim();
+    const trimmed = rawLine.trim();
     if (trimmed.startsWith("```")) {
       if (codeLines === null) {
         flushList();
+        flushTable();
         codeLines = [];
       } else {
         blocks.push(
@@ -59,11 +129,17 @@ function MarkdownLite({ text }: { text: string }) {
       codeLines.push(rawLine);
       continue;
     }
+    if (isTableRow(trimmed)) {
+      flushList();
+      tableRows.push(trimmed);
+      continue;
+    }
+    flushTable();
     if (/^#{1,6}\s+/.test(trimmed)) {
       flushList();
       blocks.push(
         <h4 className="insight-heading" key={`head-${key++}`}>
-          {trimmed.replace(/^#{1,6}\s+/, "")}
+          {renderInline(trimmed.replace(/^#{1,6}\s+/, ""))}
         </h4>,
       );
       continue;
@@ -83,11 +159,12 @@ function MarkdownLite({ text }: { text: string }) {
     flushList();
     blocks.push(
       <p className="insight-paragraph" key={`para-${key++}`}>
-        {trimmed}
+        {renderInline(trimmed)}
       </p>,
     );
   }
   flushList();
+  flushTable();
   if (codeLines !== null) {
     blocks.push(
       <pre className="insight-code" key={`code-${key++}`}>
@@ -96,6 +173,16 @@ function MarkdownLite({ text }: { text: string }) {
     );
   }
   return <div className="insight-result">{blocks}</div>;
+}
+
+function downloadFile(name: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export default memo(function InsightsView({
@@ -110,9 +197,12 @@ export default memo(function InsightsView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [reasoning, setReasoning] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [streamedChars, setStreamedChars] = useState(0);
   const [promptPreview, setPromptPreview] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const dataTables = dataset.tables.filter((table) => !table.entityKind);
@@ -183,8 +273,10 @@ export default memo(function InsightsView({
     abortRef.current = controller;
     setPromptPreview(prompt);
     setResult("");
+    setReasoning("");
     setElapsed(0);
     setStreamedChars(0);
+    setExpanded(false);
     setLoading(true);
     setError("");
     const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
@@ -194,6 +286,9 @@ export default memo(function InsightsView({
         onDelta: (chunk) => {
           setResult((current) => current + chunk);
           setStreamedChars((count) => count + chunk.length);
+        },
+        onReasoning: (chunk) => {
+          setReasoning((current) => current + chunk);
         },
       });
       setResult(content);
@@ -212,6 +307,30 @@ export default memo(function InsightsView({
     }
   };
 
+  const resultLines = result.split("\n");
+  const truncated = resultLines.length > PREVIEW_LINE_COUNT;
+  const previewText = truncated
+    ? resultLines.slice(0, PREVIEW_LINE_COUNT).join("\n")
+    : result;
+
+  const exportStamp = () => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+  };
+  const baseName = `洞察思路-${dataset.sourceFile.replace(/\.xlsx$/i, "")}-${exportStamp()}`;
+  const metaLines = [
+    `数据源：${dataset.sourceFile}（${dataTables.length} 张数据表 · ${dataset.fields.length} 个字段）`,
+    `模型：${config.model} · 生成用时 ${elapsed}s · ${new Date().toLocaleString("zh-CN")}`,
+    "由数据字典查询台「洞察思路」生成",
+  ];
+
+  const copyResult = async () => {
+    await navigator.clipboard?.writeText(result);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
   const ready = models.length > 0 && Boolean(config.model);
 
   return (
@@ -223,7 +342,7 @@ export default memo(function InsightsView({
           <p>
             面向整个数据源（{dataset.sourceFile}）生成业务洞察：资产全景、
             {tagViewCount > 0 ? `${tagViewCount} 个标签/视图、` : ""}
-            分析场景与落地建议。
+            分析场景与落地建议。结果支持预览与下载。
           </p>
         </div>
         <button
@@ -234,7 +353,7 @@ export default memo(function InsightsView({
           onClick={() => void generate()}
         >
           <Lightbulb size={16} />
-          {loading ? "生成中…" : "生成洞察思路"}
+          {loading ? "生成中…" : result ? "重新生成" : "生成洞察思路"}
         </button>
       </div>
 
@@ -334,10 +453,19 @@ export default memo(function InsightsView({
           <div className="insight-progress-meta">
             <span>
               已发送数据源摘要（{dataTables.length} 张表 ·{" "}
-              {dataset.fields.length.toLocaleString("zh-CN")} 个字段），模型生成中…
+              {dataset.fields.length.toLocaleString("zh-CN")} 个字段）
+              {result
+                ? "，正文生成中…"
+                : reasoning
+                  ? "，模型思考中（思考过程见下方，思考型模型此阶段较久）…"
+                  : "，等待模型响应…"}
             </span>
             <span>
-              已输出 {streamedChars.toLocaleString("zh-CN")} 字 · {elapsed}s
+              {result
+                ? `已输出 ${streamedChars.toLocaleString("zh-CN")} 字`
+                : `已思考 ${reasoning.length.toLocaleString("zh-CN")} 字`}
+              {" · "}
+              {elapsed}s
             </span>
           </div>
           <button
@@ -351,6 +479,20 @@ export default memo(function InsightsView({
         </div>
       )}
 
+      {reasoning && (
+        <details
+          className="insight-reasoning"
+          data-testid="insight-reasoning"
+          open={loading && !result}
+        >
+          <summary>
+            模型思考过程（{reasoning.length.toLocaleString("zh-CN")} 字）
+            {loading && !result ? " · 进行中…" : ""}
+          </summary>
+          <pre>{reasoning}</pre>
+        </details>
+      )}
+
       {(promptPreview || result) && (
         <details className="insight-basis" data-testid="insight-basis">
           <summary>
@@ -362,11 +504,86 @@ export default memo(function InsightsView({
       )}
 
       {result ? (
-        <MarkdownLite text={result} />
+        <>
+          <div className="insight-output-head">
+            <div className="insight-output-title">
+              <strong>洞察结果</strong>
+              <small>
+                共 {result.length.toLocaleString("zh-CN")} 字 · {elapsed}s ·{" "}
+                {config.model}
+              </small>
+            </div>
+            <div className="insight-output-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                data-testid="insight-copy"
+                onClick={() => void copyResult()}
+              >
+                {copied ? <Check size={14} /> : <Clipboard size={14} />}
+                {copied ? "已复制" : "复制全文"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                data-testid="insight-download-md"
+                onClick={() => downloadFile(`${baseName}.md`, result, "text/markdown")}
+              >
+                <Download size={14} />
+                下载 Markdown
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                data-testid="insight-download-html"
+                onClick={() =>
+                  downloadFile(
+                    `${baseName}.html`,
+                    buildInsightHtmlDocument({
+                      title: `洞察思路 · ${dataset.sourceFile}`,
+                      metaLines,
+                      markdown: result,
+                    }),
+                    "text/html",
+                  )
+                }
+              >
+                <FileCode2 size={14} />
+                下载 HTML 报告
+              </button>
+            </div>
+          </div>
+          <div className={expanded ? "" : "insight-excerpt"}>
+            <MarkdownLite text={expanded ? result : previewText} />
+            {!expanded && truncated && (
+              <button
+                type="button"
+                className="insight-expand"
+                data-testid="insight-expand"
+                onClick={() => setExpanded(true)}
+              >
+                展开全文（预览外还有{" "}
+                {(result.length - previewText.length).toLocaleString("zh-CN")}{" "}
+                字）
+                <ChevronDown size={14} />
+              </button>
+            )}
+          </div>
+          {expanded && (
+            <button
+              type="button"
+              className="insight-expand"
+              onClick={() => setExpanded(false)}
+            >
+              收起全文
+              <ChevronUp size={14} />
+            </button>
+          )}
+        </>
       ) : (
         !loading && (
           <div className="insights-empty-hint">
-            填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察：数据资产全景、主题域与核心实体、业务分析场景、高价值关联路径、落地建议。生成过程逐字流式呈现，可随时停止。
+            填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察。生成过程逐字流式呈现（思考型模型先展示思考过程），可随时停止，完成后支持预览与下载（Markdown / HTML）。
           </div>
         )
       )}
