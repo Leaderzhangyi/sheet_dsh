@@ -122,9 +122,17 @@ export function buildDatasetInsightPrompt(dataset: DictionaryDataset): string {
     .join("\n");
 }
 
+export interface InsightRequestHandlers {
+  /** 流式输出：每收到一段增量文本回调一次（服务不支持流式时会在结束时整段回调一次）。 */
+  onDelta?: (chunk: string) => void;
+  /** 传入 AbortSignal 可随时中止生成。 */
+  signal?: AbortSignal;
+}
+
 export async function requestInsights(
   config: LlmConfig,
   prompt: string,
+  handlers: InsightRequestHandlers = {},
 ): Promise<string> {
   const response = await fetch(resolveEndpoint(config.baseUrl, "chat/completions"), {
     method: "POST",
@@ -136,7 +144,9 @@ export async function requestInsights(
       model: config.model.trim(),
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
+      stream: true,
     }),
+    signal: handlers.signal,
   });
   if (response.status === 401 || response.status === 403) {
     throw new Error(`模型服务鉴权失败（${response.status}），请检查 API Key。`);
@@ -144,12 +154,54 @@ export async function requestInsights(
   if (!response.ok) {
     throw new Error(`模型服务返回 ${response.status}。`);
   }
-  const payload = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("模型服务未返回内容。");
+
+  // 服务端忽略 stream 参数、直接整段返回 JSON 时，走一次性回调。
+  const contentType =
+    typeof response.headers?.get === "function"
+      ? response.headers.get("content-type") ?? ""
+      : "";
+  if (!contentType.includes("text/event-stream") || !response.body) {
+    const payload = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const content = payload.choices?.[0]?.message?.content ?? "";
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("模型服务未返回内容。");
+    }
+    handlers.onDelta?.(content);
+    return content;
   }
-  return content.trim();
+
+  // SSE 流式解析：data: {"choices":[{"delta":{"content":"…"}}]}
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const json = JSON.parse(data) as {
+          choices?: { delta?: { content?: string } }[];
+        };
+        const delta = json.choices?.[0]?.delta?.content;
+        if (typeof delta === "string" && delta) {
+          full += delta;
+          handlers.onDelta?.(delta);
+        }
+      } catch {
+        // 跳过无法解析的心跳/注释行
+      }
+    }
+  }
+  if (!full.trim()) throw new Error("模型服务未返回内容。");
+  return full;
 }

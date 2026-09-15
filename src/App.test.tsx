@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ReadableStream } from 'node:stream/web'
 import type { DictionaryDataset } from './lib/import/types'
 
 const mocks = vi.hoisted(() => ({
@@ -479,6 +480,49 @@ describe('application bootstrap', () => {
     expect(requestBody.model).toBe('glm-4')
     expect(requestBody.messages[0].content).toContain('dp_ial.xlsx')
     expect(requestBody.messages[0].content).toContain('完整机构信息表')
+    vi.unstubAllGlobals()
+  })
+
+  it('streams insights progressively and exposes the prompt basis', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+
+    const encoder = new TextEncoder()
+    const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`)
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(sse({ choices: [{ delta: { content: '## 一、数据资产全景\n' } }] }))
+        controller.enqueue(sse({ choices: [{ delta: { content: '- 覆盖机构与存款主题域' } }] }))
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'glm-4' }] }) }
+      }
+      return { ok: true, status: 200, headers: { get: () => 'text/event-stream' }, body }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已连接，发现 1 个可用模型/)
+    fireEvent.click(screen.getByTestId('insight-generate'))
+
+    await screen.findByText('覆盖机构与存款主题域')
+    expect(screen.getByRole('heading', { name: '一、数据资产全景' })).toBeInTheDocument()
+    expect(screen.getByTestId('insight-basis')).toBeInTheDocument()
+    expect(screen.getByTestId('insight-basis')).toHaveTextContent('完整机构信息表')
+
+    const chatCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/chat/completions')) as unknown as [string, RequestInit]
+    const requestBody = JSON.parse(String(chatCall[1].body))
+    expect(requestBody.stream).toBe(true)
     vi.unstubAllGlobals()
   })
 

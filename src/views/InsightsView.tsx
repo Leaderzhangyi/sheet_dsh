@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from "react";
+import { memo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -110,6 +110,10 @@ export default memo(function InsightsView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const [streamedChars, setStreamedChars] = useState(0);
+  const [promptPreview, setPromptPreview] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
   const dataTables = dataset.tables.filter((table) => !table.entityKind);
   const tagViewCount = dataset.tables.length - dataTables.length;
@@ -174,22 +178,37 @@ export default memo(function InsightsView({
       setError("请先测试连接并选择模型。");
       return;
     }
+    const prompt = buildDatasetInsightPrompt(dataset);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setPromptPreview(prompt);
+    setResult("");
+    setElapsed(0);
+    setStreamedChars(0);
     setLoading(true);
     setError("");
+    const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
     try {
-      const content = await requestInsights(
-        config,
-        buildDatasetInsightPrompt(dataset),
-      );
+      const content = await requestInsights(config, prompt, {
+        signal: controller.signal,
+        onDelta: (chunk) => {
+          setResult((current) => current + chunk);
+          setStreamedChars((count) => count + chunk.length);
+        },
+      });
       setResult(content);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "模型服务调用失败。",
-      );
+      if (!controller.signal.aborted) {
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "模型服务调用失败。",
+        );
+      }
     } finally {
+      window.clearInterval(timer);
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
@@ -307,14 +326,49 @@ export default memo(function InsightsView({
         </div>
       )}
 
+      {loading && (
+        <div className="insight-progress" data-testid="insight-progress">
+          <div className="insight-progress-bar">
+            <span />
+          </div>
+          <div className="insight-progress-meta">
+            <span>
+              已发送数据源摘要（{dataTables.length} 张表 ·{" "}
+              {dataset.fields.length.toLocaleString("zh-CN")} 个字段），模型生成中…
+            </span>
+            <span>
+              已输出 {streamedChars.toLocaleString("zh-CN")} 字 · {elapsed}s
+            </span>
+          </div>
+          <button
+            type="button"
+            className="secondary-button insight-stop"
+            data-testid="insight-stop"
+            onClick={() => abortRef.current?.abort()}
+          >
+            停止生成
+          </button>
+        </div>
+      )}
+
+      {(promptPreview || result) && (
+        <details className="insight-basis" data-testid="insight-basis">
+          <summary>
+            分析依据：本次发送给模型的数据摘要（{dataTables.length} 张数据表 ·{" "}
+            {topicCount} 个主题域 · 高频公共代码 Top20）
+          </summary>
+          <pre>{promptPreview}</pre>
+        </details>
+      )}
+
       {result ? (
         <MarkdownLite text={result} />
       ) : (
-        <div className="insights-empty-hint">
-          {loading
-            ? "正在生成，稍候…"
-            : "填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察：数据资产全景、主题域与核心实体、业务分析场景、高价值关联路径、落地建议。"}
-        </div>
+        !loading && (
+          <div className="insights-empty-hint">
+            填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察：数据资产全景、主题域与核心实体、业务分析场景、高价值关联路径、落地建议。生成过程逐字流式呈现，可随时停止。
+          </div>
+        )
       )}
     </div>
   );
