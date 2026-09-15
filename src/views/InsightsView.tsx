@@ -1,4 +1,4 @@
-import { memo, useRef, useState, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -16,14 +16,8 @@ import {
   Table2,
 } from "lucide-react";
 import type { DictionaryDataset } from "../lib/import/types";
-import {
-  buildDatasetInsightPrompt,
-  listModels,
-  loadLlmConfig,
-  requestInsights,
-  saveLlmConfig,
-  type LlmConfig,
-} from "../lib/insights/llm";
+import type { InsightsState } from "../hooks/useInsights";
+import { DEFAULT_INSIGHT_INSTRUCTIONS } from "../lib/insights/llm";
 import { buildInsightHtmlDocument } from "../lib/insights/markdown";
 
 const PREVIEW_LINE_COUNT = 36;
@@ -187,24 +181,15 @@ function downloadFile(name: string, content: string, mime: string) {
 
 export default memo(function InsightsView({
   dataset,
+  insights,
 }: {
   dataset: DictionaryDataset;
+  insights: InsightsState;
 }) {
-  const [config, setConfig] = useState<LlmConfig>(() => loadLlmConfig());
-  const [models, setModels] = useState<string[]>([]);
-  const [testing, setTesting] = useState(false);
-  const [testStatus, setTestStatus] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState("");
-  const [reasoning, setReasoning] = useState("");
-  const [elapsed, setElapsed] = useState(0);
-  const [streamedChars, setStreamedChars] = useState(0);
-  const [promptPreview, setPromptPreview] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
+  const { config, loading, result, reasoning } = insights;
   const dataTables = dataset.tables.filter((table) => !table.entityKind);
   const tagViewCount = dataset.tables.length - dataTables.length;
   const codeSetCount = new Set(
@@ -226,87 +211,6 @@ export default memo(function InsightsView({
     { label: "主题域", value: topicCount, icon: Layers3, accent: "green" },
   ];
 
-  const updateConfig = (patch: Partial<LlmConfig>) => {
-    setConfig((current) => {
-      const next = { ...current, ...patch };
-      saveLlmConfig(next);
-      return next;
-    });
-  };
-
-  const testConnection = async () => {
-    setTesting(true);
-    setTestStatus("");
-    setError("");
-    try {
-      const available = await listModels(config);
-      setModels(available);
-      setTestStatus(`已连接，发现 ${available.length} 个可用模型`);
-      setConfig((current) => {
-        const model = available.includes(current.model)
-          ? current.model
-          : available[0];
-        const next = { ...current, model };
-        saveLlmConfig(next);
-        return next;
-      });
-    } catch (testError) {
-      setModels([]);
-      setTestStatus("");
-      setError(
-        testError instanceof Error
-          ? `连接失败：${testError.message}`
-          : "连接失败，请检查服务地址与网络。",
-      );
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const generate = async () => {
-    if (!config.model) {
-      setError("请先测试连接并选择模型。");
-      return;
-    }
-    const prompt = buildDatasetInsightPrompt(dataset);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setPromptPreview(prompt);
-    setResult("");
-    setReasoning("");
-    setElapsed(0);
-    setStreamedChars(0);
-    setExpanded(false);
-    setLoading(true);
-    setError("");
-    const timer = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
-    try {
-      const content = await requestInsights(config, prompt, {
-        signal: controller.signal,
-        onDelta: (chunk) => {
-          setResult((current) => current + chunk);
-          setStreamedChars((count) => count + chunk.length);
-        },
-        onReasoning: (chunk) => {
-          setReasoning((current) => current + chunk);
-        },
-      });
-      setResult(content);
-    } catch (requestError) {
-      if (!controller.signal.aborted) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "模型服务调用失败。",
-        );
-      }
-    } finally {
-      window.clearInterval(timer);
-      setLoading(false);
-      abortRef.current = null;
-    }
-  };
-
   const resultLines = result.split("\n");
   const truncated = resultLines.length > PREVIEW_LINE_COUNT;
   const previewText = truncated
@@ -319,9 +223,12 @@ export default memo(function InsightsView({
     return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
   };
   const baseName = `洞察思路-${dataset.sourceFile.replace(/\.xlsx$/i, "")}-${exportStamp()}`;
+  const generatedAtText = insights.savedAt
+    ? `生成于 ${new Date(insights.savedAt).toLocaleString("zh-CN")}`
+    : `${insights.elapsed}s`;
   const metaLines = [
     `数据源：${dataset.sourceFile}（${dataTables.length} 张数据表 · ${dataset.fields.length} 个字段）`,
-    `模型：${config.model} · 生成用时 ${elapsed}s · ${new Date().toLocaleString("zh-CN")}`,
+    `模型：${config.model || insights.generatedFor} · ${generatedAtText}`,
     "由数据字典查询台「洞察思路」生成",
   ];
 
@@ -331,7 +238,7 @@ export default memo(function InsightsView({
     window.setTimeout(() => setCopied(false), 2000);
   };
 
-  const ready = models.length > 0 && Boolean(config.model);
+  const ready = insights.models.length > 0 && Boolean(config.model);
 
   return (
     <div className="insights-page">
@@ -342,7 +249,7 @@ export default memo(function InsightsView({
           <p>
             面向整个数据源（{dataset.sourceFile}）生成业务洞察：资产全景、
             {tagViewCount > 0 ? `${tagViewCount} 个标签/视图、` : ""}
-            分析场景与落地建议。结果支持预览与下载。
+            分析场景与落地建议。生成过程在后台持续进行，切页不影响。
           </p>
         </div>
         <button
@@ -350,7 +257,7 @@ export default memo(function InsightsView({
           className="primary-button"
           data-testid="insight-generate"
           disabled={loading || !ready}
-          onClick={() => void generate()}
+          onClick={() => void insights.generate()}
         >
           <Lightbulb size={16} />
           {loading ? "生成中…" : result ? "重新生成" : "生成洞察思路"}
@@ -383,7 +290,9 @@ export default memo(function InsightsView({
             <input
               data-testid="insight-base"
               value={config.baseUrl}
-              onChange={(event) => updateConfig({ baseUrl: event.target.value })}
+              onChange={(event) =>
+                insights.updateConfig({ baseUrl: event.target.value })
+              }
               placeholder="https://llm.intra/v1"
             />
           </label>
@@ -393,7 +302,9 @@ export default memo(function InsightsView({
               data-testid="insight-key"
               type="password"
               value={config.apiKey}
-              onChange={(event) => updateConfig({ apiKey: event.target.value })}
+              onChange={(event) =>
+                insights.updateConfig({ apiKey: event.target.value })
+              }
               placeholder="内网网关可不填"
             />
           </label>
@@ -401,25 +312,27 @@ export default memo(function InsightsView({
             type="button"
             className="secondary-button insight-test-button"
             data-testid="insight-test"
-            disabled={testing}
-            onClick={() => void testConnection()}
+            disabled={insights.testing}
+            onClick={() => void insights.testConnection()}
           >
-            {testing ? "测试中…" : "测试连接"}
+            {insights.testing ? "测试中…" : "测试连接"}
           </button>
           <label className="insight-model-field">
             模型（测试连接后选择）
             <select
               data-testid="insight-model"
               value={config.model}
-              disabled={models.length === 0}
-              onChange={(event) => updateConfig({ model: event.target.value })}
+              disabled={insights.models.length === 0}
+              onChange={(event) =>
+                insights.updateConfig({ model: event.target.value })
+              }
             >
-              {models.length === 0 ? (
+              {insights.models.length === 0 ? (
                 <option value={config.model}>
                   {config.model || "请先点击“测试连接”"}
                 </option>
               ) : (
-                models.map((model) => (
+                insights.models.map((model) => (
                   <option key={model} value={model}>
                     {model}
                   </option>
@@ -428,9 +341,9 @@ export default memo(function InsightsView({
             </select>
           </label>
         </div>
-        {testStatus && (
+        {insights.testStatus && (
           <p className="insight-status ok" data-testid="insight-status">
-            <Check size={12} /> {testStatus}
+            <Check size={12} /> {insights.testStatus}
           </p>
         )}
         <p className="insight-config-note">
@@ -438,10 +351,38 @@ export default memo(function InsightsView({
         </p>
       </div>
 
-      {error && (
+      <details className="insight-basis insight-prompt-editor" data-testid="insight-prompt-editor">
+        <summary>
+          自定义提示词（高级）
+          {insights.instructions.trim()
+            ? " · 已启用自定义模板"
+            : " · 当前使用默认模板"}
+        </summary>
+        <div className="insight-prompt-tools">
+          <span>
+            发送时会把 <code>{"{数据摘要}"}</code> 占位符替换为自动生成的数据源摘要；不写占位符则自动附加在末尾。模板保存在本机浏览器。
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            data-testid="insight-prompt-reset"
+            onClick={insights.resetInstructions}
+          >
+            恢复默认提示词
+          </button>
+        </div>
+        <textarea
+          data-testid="insight-prompt"
+          value={insights.instructions.trim() ? insights.instructions : DEFAULT_INSIGHT_INSTRUCTIONS}
+          onChange={(event) => insights.updateInstructions(event.target.value)}
+          spellCheck={false}
+        />
+      </details>
+
+      {insights.error && (
         <div className="insight-error">
           <AlertTriangle size={15} />
-          {error}
+          {insights.error}
         </div>
       )}
 
@@ -459,20 +400,23 @@ export default memo(function InsightsView({
                 : reasoning
                   ? "，模型思考中（思考过程见下方，思考型模型此阶段较久）…"
                   : "，等待模型响应…"}
+              {insights.generatedFor && insights.generatedFor !== dataset.sourceFile
+                ? `（本次生成基于 ${insights.generatedFor}）`
+                : ""}
             </span>
             <span>
               {result
-                ? `已输出 ${streamedChars.toLocaleString("zh-CN")} 字`
+                ? `已输出 ${insights.streamedChars.toLocaleString("zh-CN")} 字`
                 : `已思考 ${reasoning.length.toLocaleString("zh-CN")} 字`}
               {" · "}
-              {elapsed}s
+              {insights.elapsed}s
             </span>
           </div>
           <button
             type="button"
             className="secondary-button insight-stop"
             data-testid="insight-stop"
-            onClick={() => abortRef.current?.abort()}
+            onClick={insights.stop}
           >
             停止生成
           </button>
@@ -493,24 +437,30 @@ export default memo(function InsightsView({
         </details>
       )}
 
-      {(promptPreview || result) && (
+      {(insights.promptPreview || result) && (
         <details className="insight-basis" data-testid="insight-basis">
           <summary>
             分析依据：本次发送给模型的数据摘要（{dataTables.length} 张数据表 ·{" "}
             {topicCount} 个主题域 · 高频公共代码 Top20）
           </summary>
-          <pre>{promptPreview}</pre>
+          <pre>{insights.promptPreview}</pre>
         </details>
       )}
 
       {result ? (
         <>
+          {insights.generatedFor && insights.generatedFor !== dataset.sourceFile && (
+            <p className="insight-source-note" data-testid="insight-source-note">
+              以下结果生成自数据源「{insights.generatedFor}」；点击“重新生成”将基于当前数据源「
+              {dataset.sourceFile}」。
+            </p>
+          )}
           <div className="insight-output-head">
             <div className="insight-output-title">
               <strong>洞察结果</strong>
               <small>
-                共 {result.length.toLocaleString("zh-CN")} 字 · {elapsed}s ·{" "}
-                {config.model}
+                共 {result.length.toLocaleString("zh-CN")} 字 ·{" "}
+                {generatedAtText} · {config.model}
               </small>
             </div>
             <div className="insight-output-actions">
@@ -583,7 +533,7 @@ export default memo(function InsightsView({
       ) : (
         !loading && (
           <div className="insights-empty-hint">
-            填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察。生成过程逐字流式呈现（思考型模型先展示思考过程），可随时停止，完成后支持预览与下载（Markdown / HTML）。
+            填写模型服务并测试连接后，点击右上角“生成洞察思路”，将基于整个数据源的资产结构生成五节洞察。生成在后台持续进行——切到其他页面不影响，左侧导航“洞察思路”旁的呼吸点表示生成中；完成后支持预览与下载（Markdown / HTML）。
           </div>
         )
       )}

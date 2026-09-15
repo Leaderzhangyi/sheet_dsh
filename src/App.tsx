@@ -55,6 +55,7 @@ import SourcesView from "./views/SourcesView";
 import ImportDialog from "./views/ImportDialog";
 import BootstrapScreen from "./views/BootstrapScreen";
 import InsightsView from "./views/InsightsView";
+import { useInsights } from "./hooks/useInsights";
 
 function App() {
   const [datasets, setDatasets] = useState<WorkspaceDatasets>({});
@@ -101,6 +102,8 @@ function App() {
     () => (dataset ? buildSearchIndex(dataset) : null),
     [dataset],
   );
+  // 洞察生成状态挂在 App 层：切页（InsightsView 卸载）后生成继续，回来还能看到结果。
+  const insights = useInsights(dataset);
 
   // 事件处理器里读取“最新状态”的引用，让传给 memo 视图的回调保持稳定，
   // 避免搜索框每敲一个字就触发无关视图整树重渲染。
@@ -809,7 +812,7 @@ function App() {
       );
     }
     if (activeNav === "insights") {
-      return <InsightsView dataset={dataset} />;
+      return <InsightsView dataset={dataset} insights={insights} />;
     }
     return (
       <SourcesView
@@ -864,6 +867,13 @@ function App() {
                 <Icon size={17} />
                 <span>{label}</span>
                 {key === "search" && <kbd>⌘ K</kbd>}
+                {key === "insights" && insights.loading && (
+                  <span
+                    className="nav-live-dot"
+                    data-testid="insights-live-dot"
+                    title="洞察生成中…"
+                  />
+                )}
               </button>
             </Fragment>
           ))}

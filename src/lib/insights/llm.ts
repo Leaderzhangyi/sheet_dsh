@@ -8,6 +8,71 @@ export interface LlmConfig {
 }
 
 const STORAGE_KEY = "data-dictionary-insights-llm";
+const PROMPT_STORAGE_KEY = "data-dictionary-insights-prompt";
+const RESULT_STORAGE_KEY = "data-dictionary-insight-result";
+
+/** 可编辑的默认提示词模板；{数据摘要} 在发送时替换为自动生成的数据源摘要。 */
+export const DEFAULT_INSIGHT_INSTRUCTIONS = `你是资深银行数据分析专家，正在为零售银行的数据资产梳理洞察思路。
+
+业务背景参考（零售客户全生命周期模型运营体系）：
+- 生命周期视角：客户旅程覆盖 新开户（首购模型）→ 首笔入金（资产提升、理财购买、定期存款购买）→ 多笔交易（流失预警、客群经营）等阶段，分析场景应尽量映射到客户所处阶段与对应模型建设目标。
+- 特征体系视角：数据资产可归入九大类特征——自然人特征、用户资产配置特征、用户借记卡交易特征、用户存款行为特征、用户贷款行为特征、用户信用卡交易特征、用户理财行为特征、用户埋点行为特征、用户营销行为特征；识别核心实体可支撑的特征类别。
+
+请基于数据摘要输出可直接落地的“洞察思路”，使用简体中文与 Markdown，按以下五节：
+## 一、数据资产全景 —— 数据源的定位、规模与结构特征
+## 二、主题域与核心实体 —— 主要主题域划分与每域核心实体（引用表英文名），并标注可归入的特征类别
+## 三、可支撑的业务分析场景 —— 至少 6 条，尽量关联客户全生命周期阶段（首购/资产提升/理财购买/定存购买/流失预警等）
+## 四、高价值关联路径 —— 借助公共代码/数据标准/主键可串联的字段与主题，指出可拼装的特征组合
+## 五、落地建议 —— 建议的指标、看板与示例 SQL 思路（GaussDB 语法，1~2 条）
+
+数据摘要：
+{数据摘要}`;
+
+export function loadInsightInstructions(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(PROMPT_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveInsightInstructions(instructions: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROMPT_STORAGE_KEY, instructions);
+}
+
+export interface PersistedInsightResult {
+  result: string;
+  generatedFor: string;
+  model: string;
+  elapsed: number;
+  savedAt: string;
+}
+
+export function loadInsightResult(): PersistedInsightResult | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(RESULT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedInsightResult>;
+    if (typeof parsed.result !== "string" || !parsed.result.trim()) return null;
+    return {
+      result: parsed.result,
+      generatedFor: parsed.generatedFor ?? "",
+      model: parsed.model ?? "",
+      elapsed: parsed.elapsed ?? 0,
+      savedAt: parsed.savedAt ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveInsightResult(record: PersistedInsightResult): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(record));
+}
 
 export function loadLlmConfig(): LlmConfig {
   if (typeof window === "undefined") return { baseUrl: "", apiKey: "", model: "" };
@@ -78,8 +143,8 @@ export async function listModels(config: LlmConfig): Promise<string[]> {
   return models;
 }
 
-/** 面向整个数据源构建洞察提示词：资产全景 + 主题分布 + 表清单 + 高频公共代码。 */
-export function buildDatasetInsightPrompt(dataset: DictionaryDataset): string {
+/** 自动生成的数据源摘要：规模、主题分布、表清单与高频公共代码。 */
+export function buildDatasetSummary(dataset: DictionaryDataset): string {
   const topicCount = new Map<string, number>();
   for (const table of dataset.tables) {
     const key = table.topic || "未分类";
@@ -112,18 +177,9 @@ export function buildDatasetInsightPrompt(dataset: DictionaryDataset): string {
   const codeSetCount = new Set(dataset.codeItems.map((code) => code.codeSetName)).size;
 
   return [
-    "你是资深银行数据分析专家。请基于下方数据字典信息，针对这整个数据源输出可直接落地的“洞察思路”。",
-    "要求使用简体中文与 Markdown，按以下五节输出：",
-    "## 一、数据资产全景 —— 数据源的定位、规模与结构特征",
-    "## 二、主题域与核心实体 —— 主要主题域划分与每域的核心实体（引用表英文名）",
-    "## 三、可支撑的业务分析场景 —— 至少 6 条跨表/跨主题的具体分析场景",
-    "## 四、高价值关联路径 —— 借助公共代码/数据标准可串联的字段与主题",
-    "## 五、落地建议 —— 建议的指标、看板与示例 SQL 思路（GaussDB 语法，1~2 条）",
-    "",
     `数据源：${dataset.sourceFile}（解析器：${dataset.adapterName}）`,
     `规模：数据表 ${dataTables.length} 张${tagViewCount ? `（另有标签/视图 ${tagViewCount} 个）` : ""}、字段 ${dataset.fields.length} 个、数据标准 ${dataset.standards.length} 条、代码集 ${codeSetCount} 个（代码值 ${dataset.codeItems.length} 条）`,
     `字段引用：${standardRefCount} 个字段挂接了数据标准；引用公共代码的字段共 ${codeRefCount.size} 种代码`,
-    "",
     `主题分布（前 ${topics.length}）：${topics.join("、") || "—"}`,
     "",
     "数据表清单：",
@@ -134,6 +190,19 @@ export function buildDatasetInsightPrompt(dataset: DictionaryDataset): string {
   ]
     .filter((line) => line !== "")
     .join("\n");
+}
+
+/** 组合最终提示词：自定义指令中的 {数据摘要} 占位符替换为摘要；未写占位符则附加在末尾。 */
+export function composeInsightPrompt(
+  instructions: string,
+  dataset: DictionaryDataset,
+): string {
+  const template = instructions.trim() || DEFAULT_INSIGHT_INSTRUCTIONS;
+  const summary = buildDatasetSummary(dataset);
+  if (template.includes("{数据摘要}")) {
+    return template.replace("{数据摘要}", summary);
+  }
+  return `${template}\n\n${summary}`;
 }
 
 export interface InsightRequestHandlers {

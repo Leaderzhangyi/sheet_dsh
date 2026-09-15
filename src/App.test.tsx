@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ReadableStream } from 'node:stream/web'
+import { ReadableStream, type ReadableStreamDefaultController } from 'node:stream/web'
 import type { DictionaryDataset } from './lib/import/types'
 
 const mocks = vi.hoisted(() => ({
@@ -572,6 +572,105 @@ describe('application bootstrap', () => {
     expect(screen.getByTestId('insight-copy')).toBeInTheDocument()
     expect(screen.getByTestId('insight-download-md')).toBeInTheDocument()
     expect(screen.getByTestId('insight-download-html')).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps generating in the background while navigating to other pages', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    const encoder = new TextEncoder()
+    let streamController!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller
+      },
+    })
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'glm-4' }] }) }
+      }
+      return { ok: true, status: 200, headers: { get: () => 'text/event-stream' }, body }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    fireEvent.click(screen.getByTestId('nav-insights'))
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已连接，发现 1 个可用模型/)
+
+    streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: '## 一、开头段落' } }] })}\n\n`))
+    fireEvent.click(screen.getByTestId('insight-generate'))
+    await screen.findByText('一、开头段落')
+    expect(screen.getByTestId('insights-live-dot')).toBeInTheDocument()
+
+    // 切到表目录：洞察组件卸载，但流仍在后台推进
+    fireEvent.click(screen.getByTestId('nav-tables'))
+    expect(screen.queryByTestId('insight-progress')).not.toBeInTheDocument()
+    expect(screen.getByTestId('insights-live-dot')).toBeInTheDocument()
+    streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: '\n结尾段落' } }] })}\n\n`))
+    streamController.enqueue(encoder.encode('data: [DONE]\n\n'))
+    streamController.close()
+
+    // 回到洞察页：完整结果仍在
+    fireEvent.click(screen.getByTestId('nav-insights'))
+    await screen.findByText('结尾段落')
+    expect(screen.getByText('一、开头段落')).toBeInTheDocument()
+    expect(screen.queryByTestId('insights-live-dot')).not.toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('persists the insight result across page reloads and supports a custom prompt', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    const first = render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+
+    // 自定义提示词：含占位符
+    fireEvent.click(screen.getByTestId('insight-prompt-editor').querySelector('summary')!)
+    const promptBox = screen.getByTestId('insight-prompt')
+    fireEvent.change(promptBox, { target: { value: '你是零售客户全生命周期建模顾问。请围绕首购/资产提升/流失预警给出建议。\n{数据摘要}' } })
+    expect(screen.getByTestId('insight-prompt-reset')).toBeInTheDocument()
+
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: 'glm-4' }] }) }
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: '## 一、模型建议\n- 首购模型优先使用自然人特征' } }] }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已连接，发现 1 个可用模型/)
+    fireEvent.click(screen.getByTestId('insight-generate'))
+    await screen.findByText('首购模型优先使用自然人特征')
+
+    const chatCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/chat/completions')) as unknown as [string, RequestInit]
+    const requestBody = JSON.parse(String(chatCall[1].body))
+    expect(requestBody.messages[0].content).toContain('零售客户全生命周期建模顾问')
+    expect(requestBody.messages[0].content).toContain('dp_ial.xlsx')
+    expect(requestBody.messages[0].content).toContain('完整机构信息表')
+
+    // 刷新模拟：卸载后重新挂载，结果从 localStorage 恢复
+    first.unmount()
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+    expect(await screen.findByText('首购模型优先使用自然人特征')).toBeInTheDocument()
+    expect(screen.getByText(/生成于/)).toBeInTheDocument()
+    // 自定义提示词也被恢复
+    expect(screen.getByTestId('insight-prompt')).toHaveValue('你是零售客户全生命周期建模顾问。请围绕首购/资产提升/流失预警给出建议。\n{数据摘要}')
     vi.unstubAllGlobals()
   })
 
