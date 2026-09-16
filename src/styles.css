@@ -256,6 +256,22 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .insight-prompt-editor textarea { width: 100%; box-sizing: border-box; min-height: 260px; resize: vertical; border: 1px solid #d9dcdf; border-radius: 5px; padding: 10px 12px; font-size: 11px; line-height: 1.7; color: #4a5055; background: #fff; font-family: inherit; }
 .insight-prompt-editor textarea:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
 .insight-prompt-tools code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 3px; padding: 0 4px; font-size: 9px; color: #31596a; }
+
+/* ---- 连接数据库 ---- */
+.db-form { margin-top: 14px; }
+.db-form-note { color: #a0a4a8; font-size: 9px; line-height: 1.7; margin: 6px 0 12px; }
+.db-form-note code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 3px; padding: 0 4px; font-size: 9px; color: #31596a; }
+.db-form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.db-form-grid label { display: grid; gap: 5px; font-size: 10px; color: #858b90; }
+.db-form-grid input { height: 32px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); min-width: 0; }
+.db-form-grid input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
+.db-form-actions { display: flex; align-items: end; gap: 7px; grid-column: span 2; }
+.db-form-actions .db-test { height: 32px; }
+.db-table-tools { display: flex; gap: 6px; }
+.db-table-tools .secondary-button { height: 26px; font-size: 10px; }
+.sheet-option-main strong { display: inline-flex; align-items: center; gap: 5px; }
+.sheet-option-main strong svg { color: #98a2ad; }
+@media (max-width: 680px) { .db-form-grid { grid-template-columns: 1fr; }.db-form-actions { grid-column: auto; flex-wrap: wrap; } }
 .insight-error { display: flex; align-items: center; gap: 7px; color: var(--red); background: #fdf0ef; border: 1px solid #f0d4d2; border-radius: 5px; padding: 9px 11px; margin-top: 14px; font-size: 11px; }
 .insights-empty-hint { margin-top: 26px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.9; padding: 40px 24px; border: 1px dashed var(--line); border-radius: 6px; }
 .insight-result { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 6px; }

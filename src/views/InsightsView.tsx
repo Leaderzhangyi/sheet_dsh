@@ -282,7 +282,7 @@ export default memo(function InsightsView({
 
       <div className="insight-config">
         <div className="detail-section-label">
-          模型服务（OpenAI 兼容；配置仅保存在本机浏览器）
+          模型服务（兼容OpenAI协议接口 ；配置仅保存在本机浏览器）
         </div>
         <div className="insight-config-grid">
           <label>

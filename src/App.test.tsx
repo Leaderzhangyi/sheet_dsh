@@ -674,6 +674,72 @@ describe('application bootstrap', () => {
     vi.unstubAllGlobals()
   })
 
+  it('imports tables from a MySQL database through the bridge', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('db-connect-button'))
+
+    fireEvent.change(screen.getByTestId('db-host'), { target: { value: '10.20.30.5' } })
+    fireEvent.change(screen.getByTestId('db-user'), { target: { value: 'ro_user' } })
+    fireEvent.change(screen.getByTestId('db-password'), { target: { value: 'secret' } })
+    fireEvent.change(screen.getByTestId('db-database'), { target: { value: 'retail_mart' } })
+
+    const ddl = [
+      'CREATE TABLE `cust_info` (',
+      "  `cust_no` varchar(20) NOT NULL COMMENT '客户编号',",
+      '  PRIMARY KEY (`cust_no`)',
+      ") ENGINE=InnoDB COMMENT='客户信息表';",
+      'CREATE TABLE `acct_bal` (',
+      '  `acct_no` varchar(20)',
+      ') ENGINE=InnoDB;',
+    ].join('\n')
+    const fetchMock = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const path = String(url)
+      const body = JSON.parse(String(init?.body ?? '{}'))
+      if (path.endsWith('/api/mysql/test')) return { ok: true, status: 200, json: async () => ({ ok: true, version: '8.0.36' }) }
+      if (path.endsWith('/api/mysql/tables')) {
+        expect(body.database).toBe('retail_mart')
+        expect(body.password).toBe('secret')
+        return { ok: true, status: 200, json: async () => ({ ok: true, tables: [{ name: 'cust_info', comment: '客户信息表' }, { name: 'acct_bal', comment: '' }] }) }
+      }
+      if (path.endsWith('/api/mysql/ddl')) {
+        expect(body.tables).toEqual(['cust_info', 'acct_bal'])
+        return { ok: true, status: 200, json: async () => ({ ok: true, ddl, imported: ['cust_info', 'acct_bal'] }) }
+      }
+      return { ok: false, status: 404, json: async () => ({ error: 'not found' }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(screen.getByTestId('db-fetch-tables')).toBeDisabled()
+    fireEvent.click(screen.getByTestId('db-test'))
+    await screen.findByText(/已连接（MySQL 8.0.36）/)
+    fireEvent.click(screen.getByTestId('db-fetch-tables'))
+    await screen.findByTestId('db-table-list')
+    expect(screen.getByText('客户信息表', { selector: '.sheet-option small' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('db-confirm'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(mocks.saveWorkspaceDataset).toHaveBeenCalledWith(
+        'warehouse',
+        expect.objectContaining({
+          sourceFile: 'MySQL retail_mart@10.20.30.5',
+          tables: expect.arrayContaining([
+            expect.objectContaining({ englishName: 'cust_info', chineseName: '客户信息表' }),
+            expect.objectContaining({ englishName: 'acct_bal' }),
+          ]),
+        }),
+        expect.objectContaining({ fingerprint: expect.stringContaining('mysql:10.20.30.5/retail_mart') }),
+        undefined,
+      ),
+    )
+    vi.unstubAllGlobals()
+  })
+
   it('toggles field columns from the schema settings button', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')

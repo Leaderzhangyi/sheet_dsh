@@ -118,7 +118,7 @@ function authHeaders(apiKey: string): Record<string, string> {
     : {};
 }
 
-/** 测试连通性并拉取可用模型列表（GET /models，OpenAI 兼容）。 */
+/** 测试连通性并拉取可用模型列表（GET /models，兼容OpenAI协议接口）。 */
 export async function listModels(config: LlmConfig): Promise<string[]> {
   if (!config.baseUrl.trim()) throw new Error("请先填写服务地址。");
   assertHttpAddress(config.baseUrl);

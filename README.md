@@ -24,6 +24,7 @@
 
 - **Excel 导入**：先预览全部工作表（行数 / 表头 / 疑似修订记录），勾选后由 Web Worker 本地解析；支持 DP_IAL 与 RCVP 零售集市两种版式，自动识别 schema 限定表名、带引号列名、占位值清洗与标签/视图实体分离。
 - **DDL 导入**：字符串感知解析器，支持列内 `COMMENT`、`PRIMARY KEY / DISTRIBUTE BY / PARTITION BY`、`COMMENT ON TABLE / COLUMN`、`double precision` 等多词类型与 `create or replace view` 等前缀。
+- **MySQL 直连导入**：右上角"连接数据库"——浏览器无法直连 MySQL，配套一个仅内网使用的本地桥服务（`npm run bridge`，默认 `127.0.0.1:4310`）：测试连接 → 拉取表清单（含表注释）→ 勾选 → 取回 `SHOW CREATE TABLE` 的 DDL 复用 DDL 解析器入库。桥服务只开放三个固定接口、不透传任意 SQL：查询值全部参数绑定，表名/库名等无法绑定的标识符走白名单校验并与服务端实查清单比对。注意：若查询台以 HTTPS 部署，浏览器会拦截对 HTTP 桥地址的请求（混合内容），需将桥服务置于同一 Nginx 域名下反代。
 
 ## 目录结构
 
@@ -51,6 +52,7 @@ npm run lint            # ESLint（零告警门禁）
 npm run test            # 单元测试（vitest）
 npm run test:coverage   # 覆盖率门禁（lines 80 / branches 75 / functions 80）
 npm run e2e             # 端到端测试（playwright，需本机装有 Chrome）
+npm run bridge          # MySQL 桥服务（数据库直连导入用，仅内网，默认 127.0.0.1:4310）
 npm run build           # 类型检查 + 构建，产物在 dist/
 ```
 

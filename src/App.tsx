@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import {
   ArrowLeft,
+  Cable,
   ChevronRight,
   Database,
   FileSpreadsheet,
@@ -54,6 +55,7 @@ import CodesView from "./views/CodesView";
 import SourcesView from "./views/SourcesView";
 import ImportDialog from "./views/ImportDialog";
 import BootstrapScreen from "./views/BootstrapScreen";
+import DatabaseDialog from "./views/DatabaseDialog";
 import InsightsView from "./views/InsightsView";
 import { useInsights } from "./hooks/useInsights";
 
@@ -80,6 +82,7 @@ function App() {
   const [selectedCodeId, setSelectedCodeId] = useState<string | null>(null);
   const [navigationStack, setNavigationStack] = useState<NavigationState[]>([]);
   const [showImport, setShowImport] = useState(false);
+  const [showDb, setShowDb] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [inspecting, setInspecting] = useState(false);
@@ -643,6 +646,14 @@ function App() {
     [commitDataset],
   );
 
+  const handleDbImport = async (
+    imported: DictionaryDataset,
+    fingerprint: string,
+  ) => {
+    setShowDb(false);
+    await finalizeImport(imported, "warehouse", fingerprint);
+  };
+
   const resetImport = () => {
     setShowImport(false);
     setImportError("");
@@ -949,6 +960,15 @@ function App() {
               <Upload size={15} />
               导入文件
             </button>
+            <button
+              className="quiet-button"
+              title="连接 MySQL 数据库导入表结构"
+              data-testid="db-connect-button"
+              onClick={() => setShowDb(true)}
+            >
+              <Cable size={15} />
+              连接数据库
+            </button>
             <div className="settings-wrap">
               <button
                 className="icon-button"
@@ -1016,6 +1036,14 @@ function App() {
       </main>
 
       {importDialog}
+      {showDb && (
+        <DatabaseDialog
+          onClose={() => setShowDb(false)}
+          onImport={(dataset, fingerprint) =>
+            void handleDbImport(dataset, fingerprint)
+          }
+        />
+      )}
     </div>
   );
 }
