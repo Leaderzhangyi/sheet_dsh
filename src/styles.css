@@ -69,6 +69,8 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .primary-button:disabled { opacity: .55; cursor: wait; }
 .secondary-button { background: #fff; border-color: var(--line); color: #555a5f; border-radius: 5px; padding: 9px 12px; font-size: 11px; }
 .secondary-button:hover { border-color: #c6c9cc; color: var(--ink); }
+.secondary-button:disabled { background: #f5f6f7; border-color: #e3e5e7; color: #b1b4b8; cursor: not-allowed; }
+.secondary-button:disabled:hover { border-color: #e3e5e7; color: #b1b4b8; }
 .content-area { flex: 1; min-height: 0; overflow: auto; }
 
 .search-page { max-width: 1100px; margin: 0 auto; padding: 74px 44px 70px; }
