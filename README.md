@@ -31,7 +31,7 @@
 ```text
 src/
 ├── App.tsx              应用壳：状态编排、导入向导、删除与导航
-├── views/               页面（Search / Tables / Standards / Codes / Insights / Sources / ImportDialog / Bootstrap）
+├── views/               页面（Search / Tables / Standards / Codes / Insights / Sources / Import / Database / Bootstrap）
 ├── components/          VirtualList 虚拟滚动、ConfirmButtons、Primitives、BorderGlow
 ├── hooks/               useInsights（洞察生成全局状态：后台生成/持久化/流式节流）
 └── lib/
@@ -40,6 +40,7 @@ src/
     ├── insights/        LLM 网关调用（/models、流式 chat）、Markdown 渲染与导出
     ├── storage/         IndexedDB 分片持久化
     └── navigation.ts / workspace.ts
+server/                  MySQL 桥服务（可选，连接数据库功能用；仅内网）
 ```
 
 ## 开发
@@ -69,4 +70,4 @@ npm run build           # 类型检查 + 构建，产物在 dist/
 
 ## 内网部署
 
-见 `内网部署手册-数据字典查询台.md`（交付物制作与发布流程）与 `内网部署手册-Nginx零基础附录.md`（Linux 为主的 Nginx 零基础步骤，Windows 附带）。生产包仅发布 `dist/` 静态产物，不携带任何业务数据文件。
+见 `内网部署手册-数据字典查询台.md`（交付物制作与发布流程）与 `内网部署手册-Nginx零基础附录.md`（Linux 为主的 Nginx 零基础步骤，Windows 附带）。生产包仅发布 `dist/` 静态产物，不携带任何业务数据文件。默认部署无需任何后端；如启用"连接数据库"直连导入，另按手册 5.4 节部署可选的 MySQL 桥服务（HTTPS 站点需 Nginx 反代）。
