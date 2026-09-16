@@ -686,7 +686,9 @@ describe('application bootstrap', () => {
     fireEvent.change(screen.getByTestId('db-host'), { target: { value: '10.20.30.5' } })
     fireEvent.change(screen.getByTestId('db-user'), { target: { value: 'ro_user' } })
     fireEvent.change(screen.getByTestId('db-password'), { target: { value: 'secret' } })
-    fireEvent.change(screen.getByTestId('db-database'), { target: { value: 'retail_mart' } })
+    // 中文输入法打出的全角下划线应被规范化为半角
+    fireEvent.change(screen.getByTestId('db-database'), { target: { value: 'retail＿mart' } })
+    expect(screen.getByTestId('db-database')).toHaveValue('retail_mart')
 
     const ddl = [
       'CREATE TABLE `cust_info` (',

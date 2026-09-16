@@ -10,6 +10,12 @@ describe('mysql identifier whitelist', () => {
     expect(quoteIdentifier('cust_info')).toBe('`cust_info`')
   })
 
+  it('normalizes full-width characters produced by Chinese IME', () => {
+    expect(assertSafeIdentifier('retail＿mart')).toBe('retail_mart')
+    expect(assertSafeIdentifier('ＤＢ１')).toBe('DB1')
+    expect(isSafeIdentifier('retail＿mart')).toBe(true)
+  })
+
   it('rejects anything that could escape quoting', () => {
     for (const bad of ['`t`', 'a;b', 'a b', 'x.y', "a'b", 'a"b', '', 'x'.repeat(65), 42, null, undefined, { toString: () => 't' }]) {
       expect(() => assertSafeIdentifier(bad)).toThrow(/非法标识符/)

@@ -6,6 +6,13 @@ import type { DictionaryDataset } from "../lib/import/types";
 const BRIDGE_STORAGE_KEY = "db-bridge-url";
 const DEFAULT_BRIDGE = "http://127.0.0.1:4310";
 
+/**
+ * 中文输入法下 Shift+减号 会打出全角 ＿ 或破折号 —，而不是半角 _。
+ * 连接信息各框（密码除外）做 NFKC 规范化 + 破折号映射，保证直接打出来的就是合法字符。
+ */
+const normalizeConnectionText = (value: string) =>
+  value.normalize("NFKC").replace(/—|–/g, "_");
+
 interface MysqlTable {
   name: string;
   comment: string;
@@ -182,7 +189,7 @@ export default function DatabaseDialog({
               <input
                 data-testid="db-host"
                 value={host}
-                onChange={(event) => setHost(event.target.value)}
+                onChange={(event) => setHost(normalizeConnectionText(event.target.value))}
                 placeholder="如 10.20.30.5"
               />
             </label>
@@ -191,7 +198,7 @@ export default function DatabaseDialog({
               <input
                 data-testid="db-port"
                 value={port}
-                onChange={(event) => setPort(event.target.value)}
+                onChange={(event) => setPort(normalizeConnectionText(event.target.value))}
                 placeholder="3306"
               />
             </label>
@@ -200,7 +207,7 @@ export default function DatabaseDialog({
               <input
                 data-testid="db-database"
                 value={database}
-                onChange={(event) => setDatabase(event.target.value)}
+                onChange={(event) => setDatabase(normalizeConnectionText(event.target.value))}
                 placeholder="库名"
               />
             </label>
@@ -209,7 +216,7 @@ export default function DatabaseDialog({
               <input
                 data-testid="db-user"
                 value={user}
-                onChange={(event) => setUser(event.target.value)}
+                onChange={(event) => setUser(normalizeConnectionText(event.target.value))}
                 placeholder="用户名"
               />
             </label>

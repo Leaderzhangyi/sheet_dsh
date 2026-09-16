@@ -9,15 +9,22 @@
 
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9_$\u4e00-\u9fa5]{1,64}$/
 
+// NFKC 规范化：中文输入法打出的全角字符（＿、全角字母数字）统一转为半角后再校验
+export function normalizeIdentifier(name) {
+  return typeof name === 'string' ? name.normalize('NFKC') : name
+}
+
 export function isSafeIdentifier(name) {
-  return typeof name === 'string' && IDENTIFIER_PATTERN.test(name)
+  const normalized = normalizeIdentifier(name)
+  return typeof normalized === 'string' && IDENTIFIER_PATTERN.test(normalized)
 }
 
 export function assertSafeIdentifier(name) {
-  if (!isSafeIdentifier(name)) {
+  const normalized = normalizeIdentifier(name)
+  if (!isSafeIdentifier(normalized)) {
     throw new Error(`非法标识符：${String(name).slice(0, 40)}`)
   }
-  return name
+  return normalized
 }
 
 /** 输出反引号包裹的安全标识符（入参先过白名单）。 */
