@@ -719,7 +719,7 @@ describe('application bootstrap', () => {
     await screen.findByText(/已连接（MySQL 8.0.36）/)
     fireEvent.click(screen.getByTestId('db-fetch-tables'))
     await screen.findByTestId('db-table-list')
-    expect(screen.getByText('客户信息表', { selector: '.sheet-option small' })).toBeInTheDocument()
+    expect(screen.getByText('客户信息表', { selector: '.db-table-comment' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('db-confirm'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Check, Database, RefreshCw, Table2 } from "lucide-react";
+import { AlertTriangle, Check, Plug, RefreshCw, Table2 } from "lucide-react";
 import { parseDdl } from "../lib/import/ddl";
 import type { DictionaryDataset } from "../lib/import/types";
 
@@ -156,7 +156,7 @@ export default function DatabaseDialog({
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="import-dialog import-dialog-wide"
+        className="import-dialog db-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="db-title"
@@ -171,32 +171,22 @@ export default function DatabaseDialog({
           </button>
         </div>
 
-        <div className="db-form">
-          <label>
-            桥服务地址
-            <input
-              data-testid="db-bridge"
-              value={bridgeUrl}
-              onChange={(event) => updateBridgeUrl(event.target.value)}
-              placeholder={DEFAULT_BRIDGE}
-            />
-          </label>
-          <p className="db-form-note">
-            浏览器无法直连 MySQL，需先在本机/内网启动桥服务：
-            <code>npm run bridge</code>
-            （默认 {DEFAULT_BRIDGE}，仅内网使用）。
-          </p>
-          <div className="db-form-grid">
-            <label>
+        <div className="db-section">
+          <div className="db-section-title">
+            <Plug size={15} />
+            连接信息
+          </div>
+          <div className="db-grid">
+            <label className="db-field db-field-wide2">
               主机
               <input
                 data-testid="db-host"
                 value={host}
                 onChange={(event) => setHost(event.target.value)}
-                placeholder="127.0.0.1"
+                placeholder="如 10.20.30.5"
               />
             </label>
-            <label>
+            <label className="db-field">
               端口
               <input
                 data-testid="db-port"
@@ -205,7 +195,7 @@ export default function DatabaseDialog({
                 placeholder="3306"
               />
             </label>
-            <label>
+            <label className="db-field">
               数据库
               <input
                 data-testid="db-database"
@@ -214,7 +204,7 @@ export default function DatabaseDialog({
                 placeholder="库名"
               />
             </label>
-            <label>
+            <label className="db-field">
               用户
               <input
                 data-testid="db-user"
@@ -223,7 +213,7 @@ export default function DatabaseDialog({
                 placeholder="用户名"
               />
             </label>
-            <label>
+            <label className="db-field">
               密码
               <input
                 data-testid="db-password"
@@ -233,7 +223,7 @@ export default function DatabaseDialog({
                 placeholder="密码"
               />
             </label>
-            <div className="db-form-actions">
+            <div className="db-field db-actions">
               <button
                 type="button"
                 className="secondary-button insight-test-button db-test"
@@ -245,7 +235,7 @@ export default function DatabaseDialog({
               </button>
               <button
                 type="button"
-                className="secondary-button"
+                className="secondary-button db-secondary"
                 data-testid="db-fetch-tables"
                 disabled={!testStatus || testing || importing || loadingTables}
                 onClick={() => void fetchTables()}
@@ -256,21 +246,54 @@ export default function DatabaseDialog({
             </div>
           </div>
           {testStatus && (
-            <p className="insight-status ok" data-testid="db-status">
-              <Check size={12} /> {testStatus}
+            <p className="insight-status ok db-status" data-testid="db-status">
+              <Check size={13} /> {testStatus}
             </p>
           )}
+          <details className="db-bridge">
+            <summary>桥服务设置（浏览器无法直连 MySQL，默认已配好）</summary>
+            <div className="db-bridge-body">
+              <input
+                data-testid="db-bridge"
+                value={bridgeUrl}
+                onChange={(event) => updateBridgeUrl(event.target.value)}
+                placeholder={DEFAULT_BRIDGE}
+              />
+              <p>
+                先在本机/内网启动桥服务：<code>npm run bridge</code>（默认 {DEFAULT_BRIDGE}，仅内网使用）。
+              </p>
+            </div>
+          </details>
         </div>
 
         {tables && tables.length > 0 && (
-          <div className="sheet-picker">
-            <div className="sheet-picker-heading">
-              <div>
-                <span className="section-kicker">TABLE SELECTOR</span>
-                <h3>
-                  {database} · {selected.length}/{tables.length} 张表
-                </h3>
-              </div>
+          <div className="db-section">
+            <div className="db-section-title">
+              <Table2 size={15} />
+              选择要导入的表
+              <span className="db-section-count">
+                {database} · 已选 {selected.length}/{tables.length}
+              </span>
+            </div>
+            <div className="db-table-list" data-testid="db-table-list">
+              {tables.map((table) => (
+                <label
+                  className={`db-table-row ${selected.includes(table.name) ? "selected" : ""}`}
+                  key={table.name}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(table.name)}
+                    onChange={() => toggleTable(table.name)}
+                  />
+                  <span className="db-table-name">{table.name}</span>
+                  <span className="db-table-comment">
+                    {table.comment || "（无表注释）"}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {tables.length > 1 && (
               <div className="db-table-tools">
                 <button
                   type="button"
@@ -287,39 +310,19 @@ export default function DatabaseDialog({
                   清空
                 </button>
               </div>
-            </div>
-            <div className="sheet-list" data-testid="db-table-list">
-              {tables.map((table) => (
-                <label
-                  className={`sheet-option ${selected.includes(table.name) ? "selected" : ""}`}
-                  key={table.name}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(table.name)}
-                    onChange={() => toggleTable(table.name)}
-                  />
-                  <span className="sheet-option-main">
-                    <strong>
-                      <Table2 size={12} /> {table.name}
-                    </strong>
-                    <small>{table.comment || "（无表注释）"}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
+            )}
           </div>
         )}
 
         {error && (
-          <div className="import-error">
+          <div className="import-error db-error">
             <AlertTriangle size={15} />
             {error}
           </div>
         )}
 
         <div className="dialog-actions">
-          <button className="secondary-button" onClick={onClose} disabled={importing}>
+          <button className="secondary-button db-cancel" onClick={onClose} disabled={importing}>
             取消
           </button>
           <button
@@ -329,7 +332,6 @@ export default function DatabaseDialog({
             disabled={importing || !tables || selected.length === 0}
             onClick={() => void confirmImport()}
           >
-            <Database size={15} />
             {importing ? "导入中…" : `导入选中表${selected.length ? `（${selected.length}）` : ""}`}
           </button>
         </div>

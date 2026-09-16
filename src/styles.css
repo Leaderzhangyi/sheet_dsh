@@ -258,20 +258,38 @@ code, kbd, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, mon
 .insight-prompt-tools code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 3px; padding: 0 4px; font-size: 9px; color: #31596a; }
 
 /* ---- 连接数据库 ---- */
-.db-form { margin-top: 14px; }
-.db-form-note { color: #a0a4a8; font-size: 9px; line-height: 1.7; margin: 6px 0 12px; }
-.db-form-note code { background: #f4f7f8; border: 1px solid #dfe7e9; border-radius: 3px; padding: 0 4px; font-size: 9px; color: #31596a; }
-.db-form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
-.db-form-grid label { display: grid; gap: 5px; font-size: 10px; color: #858b90; }
-.db-form-grid input { height: 32px; border: 1px solid #d9dcdf; border-radius: 5px; padding: 0 9px; font-size: 11px; background: #fff; color: var(--ink); min-width: 0; }
-.db-form-grid input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; }
-.db-form-actions { display: flex; align-items: end; gap: 7px; grid-column: span 2; }
-.db-form-actions .db-test { height: 32px; }
-.db-table-tools { display: flex; gap: 6px; }
-.db-table-tools .secondary-button { height: 26px; font-size: 10px; }
-.sheet-option-main strong { display: inline-flex; align-items: center; gap: 5px; }
-.sheet-option-main strong svg { color: #98a2ad; }
-@media (max-width: 680px) { .db-form-grid { grid-template-columns: 1fr; }.db-form-actions { grid-column: auto; flex-wrap: wrap; } }
+.db-dialog { width: min(600px, 100%); }
+.db-section { background: #f8f9fa; border: 1px solid #e8eaec; border-radius: 8px; padding: 16px 18px; margin-top: 16px; }
+.db-section-title { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 13px; }
+.db-section-title svg { color: var(--blue); }
+.db-section-count { margin-left: auto; font-size: 11px; font-weight: 500; color: #979b9f; }
+.db-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.db-field { display: grid; gap: 6px; font-size: 12px; color: #5e666b; min-width: 0; }
+.db-field input { height: 38px; border: 1px solid #d5d9dc; border-radius: 6px; padding: 0 11px; font-size: 13px; background: #fff; color: var(--ink); min-width: 0; }
+.db-field input::placeholder { color: #b6babe; }
+.db-field input:focus-visible { outline: 2px solid #7fa6ca; outline-offset: 1px; border-color: #9fb6ca; }
+.db-field-wide2 { grid-column: span 2; }
+.db-actions { grid-column: span 3; display: flex; align-items: end; gap: 9px; }
+.db-actions .db-test, .db-actions .db-secondary { height: 38px; font-size: 12px; padding-inline: 14px; }
+.db-status { font-size: 12px; margin: 12px 0 0; }
+.db-bridge { margin-top: 13px; border-top: 1px dashed #dfe2e5; padding-top: 10px; }
+.db-bridge summary { cursor: pointer; font-size: 11px; color: #9ca0a4; user-select: none; }
+.db-bridge summary:hover { color: #5e666b; }
+.db-bridge-body input { width: 100%; box-sizing: border-box; height: 34px; margin-top: 9px; border: 1px solid #d5d9dc; border-radius: 6px; padding: 0 11px; font-size: 12px; background: #fff; color: var(--ink); }
+.db-bridge-body p { margin: 8px 0 0; color: #9ca0a4; font-size: 11px; line-height: 1.7; }
+.db-bridge-body code { background: #eef2f5; border-radius: 3px; padding: 1px 5px; font-size: 10px; color: #31596a; }
+.db-table-list { display: grid; gap: 8px; max-height: 300px; overflow-y: auto; padding: 2px; }
+.db-table-row { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 10px 13px; cursor: pointer; transition: .16s ease; }
+.db-table-row:hover { border-color: #c6cbd0; }
+.db-table-row.selected { border-color: #b9c9d7; background: #f4f8fb; }
+.db-table-row > input[type='checkbox'] { flex: 0 0 auto; accent-color: var(--blue); width: 15px; height: 15px; }
+.db-table-name { font: 600 13px "Cascadia Code", Consolas, monospace; color: var(--ink); white-space: nowrap; }
+.db-table-comment { font-size: 12px; color: #969b9f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-table-tools { display: flex; gap: 7px; margin-top: 11px; }
+.db-table-tools .secondary-button { height: 30px; font-size: 11px; }
+.db-error { font-size: 12px; }
+.db-cancel, .db-dialog .primary-button { height: 38px; font-size: 12px; padding-inline: 16px; }
+@media (max-width: 680px) { .db-grid { grid-template-columns: 1fr 1fr; }.db-field-wide2, .db-actions { grid-column: span 2; }.db-actions { flex-wrap: wrap; } }
 .insight-error { display: flex; align-items: center; gap: 7px; color: var(--red); background: #fdf0ef; border: 1px solid #f0d4d2; border-radius: 5px; padding: 9px 11px; margin-top: 14px; font-size: 11px; }
 .insights-empty-hint { margin-top: 26px; text-align: center; color: #9ca0a4; font-size: 11px; line-height: 1.9; padding: 40px 24px; border: 1px dashed var(--line); border-radius: 6px; }
 .insight-result { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 6px; }
