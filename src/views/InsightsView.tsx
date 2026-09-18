@@ -238,7 +238,8 @@ export default memo(function InsightsView({
     window.setTimeout(() => setCopied(false), 2000);
   };
 
-  const ready = insights.models.length > 0 && Boolean(config.model);
+  const ready = Boolean(config.model) &&
+    (config.manualModel || insights.models.length > 0);
 
   return (
     <div className="insights-page">
@@ -318,28 +319,54 @@ export default memo(function InsightsView({
             {insights.testing ? "测试中…" : "测试连接"}
           </button>
           <label className="insight-model-field">
-            模型（测试连接后选择）
-            <select
-              data-testid="insight-model"
-              value={config.model}
-              disabled={insights.models.length === 0}
-              onChange={(event) =>
-                insights.updateConfig({ model: event.target.value })
-              }
-            >
-              {insights.models.length === 0 ? (
-                <option value={config.model}>
-                  {config.model || "请先点击“测试连接”"}
-                </option>
-              ) : (
-                insights.models.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
+            模型
+            {config.manualModel ? (
+              <input
+                data-testid="insight-model"
+                value={config.model}
+                onChange={(event) =>
+                  insights.updateConfig({ model: event.target.value })
+                }
+                placeholder="手动输入模型名，如 glm-4.6"
+              />
+            ) : (
+              <select
+                data-testid="insight-model"
+                value={config.model}
+                disabled={insights.models.length === 0}
+                onChange={(event) =>
+                  insights.updateConfig({ model: event.target.value })
+                }
+              >
+                {insights.models.length === 0 ? (
+                  <option value={config.model}>
+                    {config.model || "请先点击“测试连接”"}
                   </option>
-                ))
-              )}
-            </select>
+                ) : (
+                  insights.models.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))
+                )}
+              </select>
+            )}
           </label>
+          <button
+            type="button"
+            className="secondary-button insight-model-toggle"
+            data-testid="insight-model-toggle"
+            title={
+              config.manualModel
+                ? "网关支持 /models 时可切回下拉选择"
+                : "网关没有 /models 接口？切换为手动输入模型名"
+            }
+            onClick={() =>
+              insights.updateConfig({ manualModel: !config.manualModel })
+            }
+          >
+            {config.manualModel ? "切回下拉" : "手动输入"}
+          </button>
         </div>
         {insights.testStatus && (
           <p className="insight-status ok" data-testid="insight-status">

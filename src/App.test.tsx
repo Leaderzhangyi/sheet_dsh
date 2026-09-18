@@ -742,6 +742,41 @@ describe('application bootstrap', () => {
     vi.unstubAllGlobals()
   })
 
+  it('falls back to manual model input when the gateway has no /models endpoint', async () => {
+    window.localStorage.clear()
+    mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
+    const { default: App } = await import('./App')
+
+    render(<App />)
+    await expect(screen.findByTestId('dataset-ready')).resolves.toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-insights'))
+
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes('/models')) {
+        return { ok: false, status: 404, json: async () => ({}) }
+      }
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '## 一、数据资产全景\n- 手动模型也能生成' } }] }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    fireEvent.change(screen.getByTestId('insight-base'), { target: { value: 'http://llm.intra/v1' } })
+    // 网关支持时也可手动点切换按钮进入手输模式
+    fireEvent.click(screen.getByTestId('insight-model-toggle'))
+    expect(screen.getByTestId('insight-model')).toHaveAttribute('placeholder')
+    fireEvent.click(screen.getByTestId('insight-model-toggle')) // 切回下拉
+    fireEvent.click(screen.getByTestId('insight-test'))
+    await screen.findByText(/已切换为手动输入模型名/)
+
+    // 自动切到了输入框，填写模型名后可直接生成
+    fireEvent.change(screen.getByTestId('insight-model'), { target: { value: 'qwen-plus' } })
+    expect(screen.getByTestId('insight-generate')).toBeEnabled()
+    fireEvent.click(screen.getByTestId('insight-generate'))
+    await screen.findByText('手动模型也能生成')
+    const chatCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/chat/completions')) as unknown as [string, RequestInit]
+    expect(JSON.parse(String(chatCall[1].body)).model).toBe('qwen-plus')
+    vi.unstubAllGlobals()
+  })
+
   it('toggles field columns from the schema settings button', async () => {
     mocks.loadPersistedWorkspace.mockResolvedValue({ warehouse: { dataset, source: { kind: 'uploaded', fingerprint: 'manual-1' }, savedAt: '2026-08-18T00:00:00.000Z' } })
     const { default: App } = await import('./App')

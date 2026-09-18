@@ -258,7 +258,7 @@ export default function DatabaseDialog({
             </p>
           )}
           <details className="db-bridge">
-            <summary>桥服务设置（浏览器无法直连 MySQL，默认已配好）</summary>
+            <summary>桥服务设置（浏览器无法直连 MySQL，默认已配好）· 无 Node 环境见提示</summary>
             <div className="db-bridge-body">
               <input
                 data-testid="db-bridge"
@@ -267,7 +267,9 @@ export default function DatabaseDialog({
                 placeholder={DEFAULT_BRIDGE}
               />
               <p>
-                先在本机/内网启动桥服务：<code>npm run bridge</code>（默认 {DEFAULT_BRIDGE}，仅内网使用）。
+                方式一（需 Node）：桥机器上 <code>npm run bridge</code>（默认 {DEFAULT_BRIDGE}，仅内网）。<br />
+                方式二（零部署，推荐先试）：在任何装有 mysql 客户端的机器导出 DDL，回到首页"导入文件 → DDL 文本"直接粘贴——<br />
+                <code>mysqldump -h 主机 -u 用户 -p --no-data --skip-comments 库名 &gt; ddl.sql</code>
               </p>
             </div>
           </details>

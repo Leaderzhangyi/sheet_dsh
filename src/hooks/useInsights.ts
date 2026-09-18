@@ -131,16 +131,28 @@ export function useInsights(dataset: DictionaryDataset | null): InsightsState {
         const model = available.includes(current.model)
           ? current.model
           : available[0];
-        const next = { ...current, model };
+        const next = { ...current, model, manualModel: false };
         saveLlmConfig(next);
         return next;
       });
     } catch (testError) {
       setModels([]);
       setTestStatus("");
+      const unsupported =
+        (testError as { code?: string }).code === "MODELS_UNSUPPORTED";
+      if (unsupported) {
+        // 网关本身可达但没有 /models（或返回空）：自动切到手动输入模型名
+        setConfig((current) => {
+          const next = { ...current, manualModel: true };
+          saveLlmConfig(next);
+          return next;
+        });
+      }
       setError(
         testError instanceof Error
-          ? `连接失败：${testError.message}`
+          ? unsupported
+            ? `${testError.message}（已切换为手动输入模型名）`
+            : `连接失败：${testError.message}`
           : "连接失败，请检查服务地址与网络。",
       );
     } finally {

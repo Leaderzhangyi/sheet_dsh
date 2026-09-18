@@ -5,6 +5,8 @@ export interface LlmConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** 网关不提供 /models 时置 true：模型名改为手动输入 */
+  manualModel?: boolean;
 }
 
 const STORAGE_KEY = "data-dictionary-insights-llm";
@@ -129,6 +131,12 @@ export async function listModels(config: LlmConfig): Promise<string[]> {
   if (response.status === 401 || response.status === 403) {
     throw new Error(`服务可达但鉴权失败（${response.status}），请检查 API Key。`);
   }
+  if (response.status === 404 || response.status === 405) {
+    throw Object.assign(
+      new Error("该网关未提供 /models 接口（" + response.status + "），可切换为手动输入模型名。"),
+      { code: "MODELS_UNSUPPORTED" as const },
+    );
+  }
   if (!response.ok) {
     throw new Error(`服务返回 ${response.status}，请确认地址是否为 OpenAI 兼容网关。`);
   }
@@ -138,7 +146,10 @@ export async function listModels(config: LlmConfig): Promise<string[]> {
     .filter(Boolean)
     .sort((left, right) => left.localeCompare(right));
   if (models.length === 0) {
-    throw new Error("服务未返回可用模型，请确认网关支持 /models 接口。");
+    throw Object.assign(
+      new Error("服务未返回可用模型（/models 返回空），可切换为手动输入模型名。"),
+      { code: "MODELS_UNSUPPORTED" as const },
+    );
   }
   return models;
 }

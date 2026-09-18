@@ -57,6 +57,41 @@ describe('parseDdl', () => {
     expect(custNo?.isPrimaryKey).toBe(true)
   })
 
+  it('解析 mysqldump --no-data 导出的真实格式（免桥导入路径）', () => {
+    const dataset = parseDdl([
+      '-- MySQL dump 10.13  Distrib 8.0.36',
+      '-- Host: 10.20.30.5    Database: retail_mart',
+      '',
+      '/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;',
+      '/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;',
+      '',
+      '-- Table structure for table `cust_info`',
+      '',
+      'DROP TABLE IF EXISTS `cust_info`;',
+      '/*!40101 SET @saved_cs_client     = @@character_set_client */;',
+      '',
+      'CREATE TABLE `cust_info` (',
+      "  `cust_no` varchar(20) NOT NULL COMMENT '客户编号',",
+      "  `cust_nm` varchar(64) DEFAULT NULL COMMENT '客户名称',",
+      '  `score` double precision DEFAULT NULL,',
+      '  PRIMARY KEY (`cust_no`),',
+      '  KEY `idx_cust_nm` (`cust_nm`)',
+      ") ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='客户信息表';",
+      '/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;',
+      '',
+      '-- Dump completed on 2026-09-18',
+    ].join('\n'))
+    expect(dataset.issues.filter((issue) => issue.severity === 'error')).toHaveLength(0)
+    expect(dataset.tables).toHaveLength(1)
+    expect(dataset.tables[0]).toMatchObject({ englishName: 'cust_info', chineseName: '客户信息表' })
+    const names = dataset.fields.map((field) => field.englishName)
+    expect(names).toEqual(['cust_no', 'cust_nm', 'score'])
+    const custNo = dataset.fields.find((field) => field.englishName === 'cust_no')
+    expect(custNo).toMatchObject({ chineseName: '客户编号', isPrimaryKey: true })
+    const score = dataset.fields.find((field) => field.englishName === 'score')
+    expect(score?.fieldType).toBe('double precision')
+  })
+
   it('无 CREATE TABLE 时报告错误', () => {
     const dataset = parseDdl('SELECT * FROM dual;')
     expect(dataset.tables).toHaveLength(0)
