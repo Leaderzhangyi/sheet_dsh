@@ -269,7 +269,7 @@ export default function DatabaseDialog({
               <p>
                 方式一（需 Node）：桥机器上 <code>npm run bridge</code>（默认 {DEFAULT_BRIDGE}，仅内网）。<br />
                 方式二（零部署，推荐先试）：在任何装有 mysql 客户端的机器导出 DDL，回到首页"导入文件 → DDL 文本"直接粘贴——<br />
-                <code>mysqldump -h 主机 -u 用户 -p --no-data --skip-comments 库名 &gt; ddl.sql</code>
+                <code>mysqldump -h 主机 -u 用户 -p --no-data --skip-comments --default-character-set=utf8mb4 库名 &gt; ddl.sql</code>
               </p>
             </div>
           </details>
